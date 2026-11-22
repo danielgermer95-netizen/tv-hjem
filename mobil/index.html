@@ -193,7 +193,7 @@
 </style>
 </head>
 <body>
-  <header><h1>TV Hjem <small style="font-size:11px;opacity:.45;font-weight:500">v49</small></h1><span class="pill" id="status">● Klar</span></header>
+  <header><h1>TV Hjem <small style="font-size:11px;opacity:.45;font-weight:500">v50</small></h1><span class="pill" id="status">● Klar</span></header>
 
   <div class="tabs">
     <button data-tab="fjern" class="on">Fjernb.</button>
@@ -327,6 +327,7 @@
       <label class="chk"><input type="checkbox" id="jspeak"> Læs svar højt</label>
       <label class="chk"><input type="checkbox" id="jtv"> Stemmen kommer fra TV'et</label>
       <label class="chk"><input type="checkbox" id="jfast"> Hurtig stemme (ElevenLabs Flash)</label>
+      <label class="chk"><input type="checkbox" id="jbrief"> Briefing når Jarvis åbnes (højst hver 3. time)</label>
       <label class="lbl">TMDB-nøgle (valgfri – ligger normalt på serveren)<input id="jtmdb" placeholder="API Read Access Token" autocomplete="off"></label>
     </div>
   </section>
@@ -669,7 +670,7 @@ var RC = (function () {
 
 // ---------- Automatisk opdatering: tjek om der er kommet en ny version ----------
 (function () {
-  var MINE = "49", last = 0;
+  var MINE = "50", last = 0;
   function check() {
     if (Date.now() - last < 60000) return; last = Date.now();
     fetch("version.txt?t=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.ok ? r.text() : ""; }).then(function (v) {
@@ -701,8 +702,18 @@ var RC = (function () {
       description: "Viser 3-6 film- eller serieforslag med plakater stort på TV'et. Brug det altid, når brugeren vil have noget at se. service er den danske streamingtjeneste titlen typisk ligger på (Netflix, HBO Max, Prime Video, Disney+, Viaplay, SkyShowtime, Apple TV, DR TV, TV 2 Play).",
       input_schema: obj({ heading: { type: "string" }, items: { type: "array", items: obj({
         title: { type: "string" }, year: { type: "integer" }, service: { type: "string" }, why: { type: "string" } }, ["title", "year", "service", "why"]) } },
-        ["heading", "items"]) }
+        ["heading", "items"]) },
+    { name: "get_weather", strict: true,
+      description: "Henter vejret i Aarhus: nu, de næste 24 timer og 4 dage frem, inkl. solop- og nedgang. Brug det til vejr- og MC-spørgsmål.",
+      input_schema: obj({}, []) }
   ];
+  // Websøgning (nyheder, sport, nyt på streamingtjenester) – kører hos Anthropic
+  function allTools() {
+    var m = lsGet("jarvisModel") || "claude-opus-5-5";
+    var ws = { type: m === "claude-haiku-5-5" ? "web_search_20250305" : "web_search_20260209", name: "web_search", max_uses: 4,
+      user_location: { type: "approximate", city: "Aarhus", country: "DK", timezone: "Europe/Copenhagen" } };
+    return TOOLS.concat([ws]);
+  }
   function context() {
     var en = (lsGet("jarvisLang") || "da") === "en";
     var persona = "PERSONLIGHED (gælder altid): Du er Jarvis – en kultiveret, britisk AI-butler i stil med Tony Starks assistent. " +
@@ -714,6 +725,9 @@ var RC = (function () {
       : "SPROG: Svar på dansk, men behold den britiske butler-tone (fx 'sir'). ") +
       "Du kan IKKE se TV-skærmen. Navigér derfor ikke blindt rundt i menuer med piletaster; åbn hellere apps direkte og sig ærligt, hvis noget kræver at brugeren selv vælger på skærmen. " +
       "Når brugeren vil se noget, så brug show_suggestions og nævn kort forslagene; sig at hvilken tjeneste en titel ligger på kan have ændret sig. " +
+      "Brugeren kører en fabriksny Honda CB650R (naked bike). MC-regler: under 5° = nej (dækkene har intet greb), 5–10° = måske (kolde dæk), regnrisiko ≥60% eller vindstød ≥15 m/s = nej, frost de seneste dage = saltede veje (dårligt for en ny cykel), kun i dagslys. " +
+      "Familien har: DR TV, TV 2 Play, Netflix, HBO Max, Prime Video, Disney+, Viaplay, SkyShowtime, Apple TV, YouTube, Spotify og en PS5. " +
+      "Brug web_search til nyheder (helst danske kilder som DR og TV 2), sport og 'nyt på' streamingtjenesterne – nævn kun det vigtigste, kort. " +
       "Tidspunkt nu: " + new Date().toLocaleString("da-DK") + ". " + (lastAct ? "Seneste handling: " + lastAct + "." : "");
   }
   // TMDB: søg titlen og find danske streamingtjenester (abonnement først)
@@ -771,6 +785,8 @@ var RC = (function () {
   $("#jurl").onchange = function () { lsSet("jarvisUrl", this.value.trim()); };
   $("#jmodel").value = lsGet("jarvisModel") || "claude-opus-5-5";
   $("#jmodel").onchange = function () { lsSet("jarvisModel", this.value); hist = []; };
+  $("#jbrief").checked = lsGet("jarvisBrief") !== "0";
+  $("#jbrief").onchange = function () { lsSet("jarvisBrief", this.checked ? "1" : "0"); if (this.checked) lsSet("jarvisBriefAt", "0"); };
   $("#jfast").checked = lsGet("jarvisFast") === "1";
   $("#jfast").onchange = function () { lsSet("jarvisFast", this.checked ? "1" : "0"); };
   $("#jlang").value = lsGet("jarvisLang") || "da";
@@ -823,6 +839,20 @@ var RC = (function () {
       for (var i = 0; i < keys.length; i++) { RC.key(keys[i]); await wait(180); }
       say("🎛️ " + keys.length + " tastetryk", "act"); return "Sendt " + keys.length + " tastetryk";
     }
+    if (t.name === "get_weather") {
+      try {
+        var w = await fetch("https://api.open-meteo.com/v1/forecast?latitude=56.1567&longitude=10.2108" +
+          "&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,wind_gusts_10m,precipitation" +
+          "&hourly=temperature_2m,precipitation_probability,wind_gusts_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_gusts_10m_max,sunrise,sunset" +
+          "&past_days=3&forecast_days=4&timezone=Europe%2FCopenhagen&wind_speed_unit=ms").then(function (r) { return r.json(); });
+        var now = new Date(), h0 = w.hourly.time.indexOf(w.current.time.slice(0, 13) + ":00"), hrs = [];
+        for (var k = 0; k < 24 && h0 >= 0; k += 3) hrs.push(w.hourly.time[h0 + k].slice(11, 16) + " " + Math.round(w.hourly.temperature_2m[h0 + k]) + "° regn" + w.hourly.precipitation_probability[h0 + k] + "% stød" + Math.round(w.hourly.wind_gusts_10m[h0 + k]));
+        var days = w.daily.time.map(function (d, i) { return d + ": " + Math.round(w.daily.temperature_2m_min[i]) + "–" + Math.round(w.daily.temperature_2m_max[i]) + "°, regnrisiko " + w.daily.precipitation_probability_max[i] + "%, " + w.daily.precipitation_sum[i] + " mm, stød " + Math.round(w.daily.wind_gusts_10m_max[i]) + " m/s, sol " + w.daily.sunrise[i].slice(11) + "–" + w.daily.sunset[i].slice(11); });
+        say("🌤️ Henter vejret", "act");
+        return "Aarhus nu: " + Math.round(w.current.temperature_2m) + "° (føles " + Math.round(w.current.apparent_temperature) + "°), vind " + Math.round(w.current.wind_speed_10m) + " m/s (stød " + Math.round(w.current.wind_gusts_10m) + "). " +
+          "Næste 24 t: " + hrs.join("; ") + ". Dage (de første 3 er fortid, til salt-vurdering): " + days.join(" | ");
+      } catch (e) { return "Fejl: kunne ikke hente vejret"; }
+    }
     if (t.name === "show_suggestions") {
       pendingShow = { heading: String(inp.heading || "").slice(0, 60), items: (inp.items || []).slice(0, 6).map(function (it) {
         return { title: String(it.title || "").slice(0, 60), year: it.year, service: String(it.service || "").slice(0, 30), why: String(it.why || "").slice(0, 70) }; }) };
@@ -860,17 +890,18 @@ var RC = (function () {
     hist.push({ role: "user", content: text }); trim();
     var thinking = say("…", "bot"), finalText = ""; speaking = null;
     pendingShow = null;
-    toTV({ state: "thinking", question: text.slice(0, 200) });
+    toTV({ state: "thinking", question: /^\[BRIEFING/.test(text) ? "Briefing" : text.slice(0, 200) });
     try {
-      for (var round = 0; round < 6; round++) {
+      for (var round = 0; round < 8; round++) {
         var r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json", "X-Jarvis-Key": KANAL },
-          body: JSON.stringify({ messages: hist, tools: TOOLS, context: context(), model: lsGet("jarvisModel") || "claude-opus-5-5" }) });
+          body: JSON.stringify({ messages: hist, tools: allTools(), context: context(), model: lsGet("jarvisModel") || "claude-opus-5-5" }) });
         var d = await r.json().catch(function () { return {}; });
         if (!r.ok) throw new Error(d.error || ("HTTP " + r.status));
         hist.push({ role: "assistant", content: d.content });
         var txt = (d.content || []).filter(function (b) { return b.type === "text"; }).map(function (b) { return b.text; }).join("\n").trim();
         if (txt) { finalText = txt; if (thinking) { thinking.remove(); thinking = null; } say(txt, "bot"); speak(txt); }
         if (d.stop_reason === "refusal") { if (thinking) thinking.remove(); say("Det kan jeg desværre ikke hjælpe med.", "bot"); return; }
+        if (d.stop_reason === "pause_turn") continue;   // websøgning arbejder stadig – fortsæt
         if (d.stop_reason !== "tool_use") break;
         var uses = (d.content || []).filter(function (b) { return b.type === "tool_use"; }), results = [];
         for (var i = 0; i < uses.length; i++) {
@@ -1027,8 +1058,23 @@ var RC = (function () {
     if (on) {
       if (RC.configured() && RC.ready()) { RC.openApp("hjem"); setTimeout(function () { toTV({ state: "ready" }); }, 2500); }
       else toTV({ state: "ready" });
+      setTimeout(maybeBrief, 3500);
     } else toTV({ state: "close" });
   };
+  // Briefing: når Jarvis åbnes (højst hver 3. time), fortæller han af sig selv det vigtigste
+  function maybeBrief() {
+    if (lsGet("jarvisBrief") === "0" || busy || !(lsGet("jarvisUrl") || "").trim()) return;
+    var last = +(lsGet("jarvisBriefAt") || 0);
+    if (Date.now() - last < 3 * 3600 * 1000) return;
+    lsSet("jarvisBriefAt", String(Date.now()));
+    var h = new Date().getHours();
+    var prompt = "[BRIEFING – brugeren har lige åbnet dig] Giv en kort, levende briefing som Jarvis på højst 5-6 sætninger (den læses højt): " +
+      "en hilsen der passer til tidspunktet (" + (h < 10 ? "morgen" : h < 17 ? "dag" : "aften") + "); vejret i Aarhus nu og resten af dagen; " +
+      "om det er MC-vejr i dag eller i morgen og hvorfor; de 2-3 vigtigste danske nyheder lige nu; og hvis der er noget nyt og værd at se på familiens tjenester, så nævn én ting. " +
+      "Brug get_weather og web_search. Afslut med et kort spørgsmål om, hvad brugeren har lyst til.";
+    busy = true; setMic("think", "Jarvis gør en briefing klar…");
+    ask(prompt).then(done, done);
+  }
   $("#jmode").onclick = function () {
     var on = $("#jarvis").classList.toggle("typing");
     this.textContent = on ? "🎤 Tal i stedet" : "⌨️ Skriv i stedet";
