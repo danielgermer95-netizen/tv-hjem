@@ -107,20 +107,26 @@ body {
 
 #daily { display: flex; flex-direction: column; flex: 1; justify-content: space-between; }
 .day {
-  display: grid; grid-template-columns: 96px 40px 62px 52px 1fr 52px 84px;
-  align-items: center; font-size: 21px; height: 28px;
+  display: grid; grid-template-columns: 96px 40px 104px 1fr 86px;
+  align-items: center; font-size: 21px; height: 28px; column-gap: 10px;
 }
 .day .n { font-weight: 600; }
 .day svg { width: 28px; height: 28px; }
-.day .p { color: #bfe6ff; font-weight: 600; font-size: 17px; }
-.day .lo { opacity: .6; text-align: right; padding-right: 12px; }
-.day .hi { padding-left: 12px; font-weight: 600; }
-.day .w { font-size: 16px; opacity: .6; text-align: right; }
-.bar { position: relative; height: 8px; border-radius: 4px; background: rgba(255,255,255,.12); }
-.bar span {
-  position: absolute; top: 0; bottom: 0; border-radius: 4px;
-  background: linear-gradient(90deg, #6ec6ff, #ffd66e, #ff8a5c);
-}
+.day .tt { white-space: nowrap; }
+.day .lo { opacity: .6; }
+.day .hi { font-weight: 600; margin-left: 6px; }
+.day .w { font-size: 17px; opacity: .75; text-align: right; }
+.day.head { height: 18px; font-size: 13px; text-transform: uppercase; letter-spacing: 1.2px; opacity: .5; }
+.day.head .w, .day.head .tt { font-size: 13px; }
+/* Regnrisiko: 8 søjler (3 timer hver) – højden er sandsynligheden */
+.rain { display: flex; align-items: flex-end; gap: 5px; height: 24px; }
+.rain i { flex: 1; border-radius: 3px 3px 1px 1px; background: rgba(255,255,255,.14); }
+.rain i.lo { background: rgba(140,200,255,.45); }
+.rain i.md { background: #6ec6ff; }
+.rain i.hi { background: #3fa4ff; box-shadow: 0 0 8px rgba(63,164,255,.6); }
+.rain i.na { background: rgba(255,255,255,.08); }
+.rain.lbl { height: auto; align-items: center; }
+.rain.lbl i { background: none; font-style: normal; text-align: left; }
 
 /* ---------- Dock ---------- */
 #dock {

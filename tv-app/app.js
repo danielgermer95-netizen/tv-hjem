@@ -152,21 +152,30 @@
     }
     $("hourly").innerHTML = h;
 
-    // 10 dage
-    var lo = Math.min.apply(null, d.daily.temperature_2m_min), hi = Math.max.apply(null, d.daily.temperature_2m_max), span = Math.max(1, hi - lo);
-    var out = "";
+    // 10 dage: min/max og regnrisiko gennem døgnet (8 blokke à 3 timer)
+    var byDay = {};
+    for (var q = 0; q < d.hourly.time.length; q++) {
+      var ds = d.hourly.time[q].slice(0, 10), hh = +d.hourly.time[q].slice(11, 13);
+      var blk = (byDay[ds] = byDay[ds] || [-1, -1, -1, -1, -1, -1, -1, -1]), bi = hh / 3 | 0;
+      blk[bi] = Math.max(blk[bi], d.hourly.precipitation_probability[q] || 0);
+    }
+    var nowHour = now.getHours();
+    var out = '<div class="day head"><span></span><span></span><span class="tt">Min / max</span>' +
+      '<div class="rain lbl"><i>00</i><i></i><i>06</i><i></i><i>12</i><i></i><i>18</i><i></i></div><span class="w">Nedbør</span></div>';
     for (var n = 0; n < d.daily.time.length; n++) {
       var dt = new Date(d.daily.time[n] + "T12:00:00");
-      var mn = d.daily.temperature_2m_min[n], mx = d.daily.temperature_2m_max[n];
-      var l = (mn - lo) / span * 100, w = Math.max(4, (mx - mn) / span * 100);
-      var p = d.daily.precipitation_probability_max[n], mm = d.daily.precipitation_sum[n];
+      var mn = d.daily.temperature_2m_min[n], mx = d.daily.temperature_2m_max[n], mm = d.daily.precipitation_sum[n];
+      var blocks = byDay[d.daily.time[n]] || [], bars = "";
+      for (var z = 0; z < 8; z++) {
+        var pr = blocks[z] == null ? -1 : blocks[z];
+        var past = n === 0 && (z * 3 + 3) <= nowHour;
+        bars += '<i class="' + (pr < 0 || past ? "na" : pr >= 60 ? "hi" : pr >= 30 ? "md" : "lo") + '" style="height:' + (pr < 0 || past ? 3 : Math.max(3, pr)) + '%"></i>';
+      }
       out += '<div class="day"><span class="n">' + (n === 0 ? "I dag" : DAGE_K[dt.getDay()] + " " + dt.getDate()) + '</span>' +
         icon(d.daily.weather_code[n], true) +
-        '<span class="p">' + (p >= 20 ? p + "%" : "") + '</span>' +
-        '<span class="lo">' + Math.round(mn) + '°</span>' +
-        '<div class="bar"><span style="left:' + l + '%;width:' + w + '%"></span></div>' +
-        '<span class="hi">' + Math.round(mx) + '°</span>' +
-        '<span class="w">' + (mm >= 0.5 ? mm.toFixed(1) + " mm" : Math.round(d.daily.wind_speed_10m_max[n]) + " m/s") + '</span></div>';
+        '<span class="tt"><span class="lo">' + Math.round(mn) + '°</span> <span class="hi">' + Math.round(mx) + '°</span></span>' +
+        '<div class="rain">' + bars + '</div>' +
+        '<span class="w">' + (mm >= 0.1 ? mm.toFixed(1) + " mm" : "–") + '</span></div>';
     }
     $("daily").innerHTML = out;
     theme(!!c.is_day, c.weather_code, now.getHours());
