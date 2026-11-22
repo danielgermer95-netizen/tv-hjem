@@ -186,7 +186,7 @@
 </style>
 </head>
 <body>
-  <header><h1>TV Hjem <small style="font-size:11px;opacity:.45;font-weight:500">v42</small></h1><span class="pill" id="status">● Klar</span></header>
+  <header><h1>TV Hjem <small style="font-size:11px;opacity:.45;font-weight:500">v43</small></h1><span class="pill" id="status">● Klar</span></header>
 
   <div class="tabs">
     <button data-tab="fjern" class="on">Fjernb.</button>
@@ -300,7 +300,10 @@
       <button class="jlink" id="jmode">⌨️ Skriv i stedet</button>
       <button class="jlink" id="jclose">✕ Luk på TV'et</button>
       <label><input type="checkbox" id="jspeak"> Læs svar højt</label>
-      <details><summary>Server</summary><input id="jurl" placeholder="https://tv-hjem-jarvis.xxx.workers.dev" autocomplete="off"></details>
+      <details><summary>Indstillinger</summary>
+        <input id="jurl" placeholder="Jarvis-server (…workers.dev)" autocomplete="off">
+        <input id="jtmdb" placeholder="TMDB-nøgle (API Read Access Token)" autocomplete="off">
+      </details>
     </div>
   </section>
 
@@ -643,7 +646,7 @@ var RC = (function () {
 
 // ---------- Automatisk opdatering: tjek om der er kommet en ny version ----------
 (function () {
-  var MINE = "42", last = 0;
+  var MINE = "43", last = 0;
   function check() {
     if (Date.now() - last < 60000) return; last = Date.now();
     fetch("version.txt?t=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.ok ? r.text() : ""; }).then(function (v) {
@@ -682,6 +685,31 @@ var RC = (function () {
       "Når brugeren vil se noget, så brug show_suggestions og nævn kort forslagene; sig at hvilken tjeneste en titel ligger på kan have ændret sig. " +
       "Tidspunkt nu: " + new Date().toLocaleString("da-DK") + ". " + (lastAct ? "Seneste handling: " + lastAct + "." : "");
   }
+  // TMDB: søg titlen og find danske streamingtjenester (abonnement først)
+  function tmdb(path, key) {
+    var url = "https://api.themoviedb.org/3" + path, h = { accept: "application/json" };
+    if (key.length > 40) h.Authorization = "Bearer " + key; else url += (url.indexOf("?") < 0 ? "?" : "&") + "api_key=" + encodeURIComponent(key);
+    return fetch(url, { headers: h }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); });
+  }
+  function enrichTMDB(it, key) {
+    return tmdb("/search/multi?language=da-DK&region=DK&query=" + encodeURIComponent(it.title), key).then(function (res) {
+      var list = (res.results || []).filter(function (r) { return r.media_type === "movie" || r.media_type === "tv"; }), best = null;
+      list.forEach(function (r) {
+        var y = +((r.release_date || r.first_air_date || "").slice(0, 4));
+        if (!best || (it.year && Math.abs(y - it.year) < Math.abs(+((best.release_date || best.first_air_date || "").slice(0, 4)) - it.year))) best = r;
+      });
+      if (!best) return false;
+      if (best.poster_path) it.poster = "https://image.tmdb.org/t/p/w342" + best.poster_path;
+      return tmdb("/" + best.media_type + "/" + best.id + "/watch/providers", key).then(function (wp) {
+        var dk = (wp.results || {}).DK || {}, prov = (dk.flatrate || []).concat(dk.free || [], dk.ads || []);
+        it.verified = true;
+        if (prov.length) { it.service = prov[0].provider_name; if (prov[0].logo_path) it.logo = "https://image.tmdb.org/t/p/w92" + prov[0].logo_path; }
+        else if ((dk.rent || dk.buy || []).length) it.service = "Leje/køb";
+        else it.service = "";
+        return true;
+      });
+    });
+  }
   function findPoster(title, year) {
     return new Promise(function (resolve) {
       var cb = "__pp" + Math.random().toString(36).slice(2), sc = document.createElement("script"), done = false;
@@ -705,6 +733,8 @@ var RC = (function () {
   function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
   $("#jurl").value = lsGet("jarvisUrl") || "";
   $("#jurl").onchange = function () { lsSet("jarvisUrl", this.value.trim()); };
+  $("#jtmdb").value = lsGet("tmdbKey") || "";
+  $("#jtmdb").onchange = function () { lsSet("tmdbKey", this.value.trim()); };
   $("#jspeak").checked = lsGet("jarvisSpeak") !== "0"; // tale er standard
   $("#jspeak").onchange = function () { lsSet("jarvisSpeak", this.checked ? "1" : "0"); };
 
@@ -742,11 +772,18 @@ var RC = (function () {
     if (t.name === "show_suggestions") {
       pendingShow = { heading: String(inp.heading || "").slice(0, 60), items: (inp.items || []).slice(0, 6).map(function (it) {
         return { title: String(it.title || "").slice(0, 60), year: it.year, service: String(it.service || "").slice(0, 30), why: String(it.why || "").slice(0, 70) }; }) };
-      // Hent rigtige plakater fra Apples filmkatalog her på telefonen (TV'et kan ikke selv)
-      await Promise.all(pendingShow.items.map(function (it) { return findPoster(it.title, it.year).then(function (u) { if (u) it.poster = u; }); }));
+      // Slå hver titel op: rigtig plakat, og hvor den faktisk kan ses i Danmark (TMDB/JustWatch)
+      var key = (lsGet("tmdbKey") || "").trim();
+      await Promise.all(pendingShow.items.map(function (it) {
+        return (key ? enrichTMDB(it, key) : Promise.resolve(false)).then(function (ok) {
+          if (ok || it.poster) return;
+          return findPoster(it.title, it.year).then(function (u) { if (u) it.poster = u; });
+        }).catch(function () {});
+      }));
+      var facts = pendingShow.items.map(function (i) { return i.title + ": " + (i.verified ? (i.service || "ikke på streaming i DK lige nu") : "ukendt (ikke slået op)"); }).join("; ");
       say("🎬 " + pendingShow.items.map(function (i) { return i.title; }).join(", "), "act");
       lastAct = "viste forslag på TV'et: " + pendingShow.items.map(function (i) { return i.title; }).join(", ");
-      return "Forslagene vises på TV'et, når du har svaret";
+      return "Forslagene vises på TV'et, når du har svaret. Slået op i TMDB (brug disse tjenester i dit svar, ikke dine egne gæt): " + facts;
     }
     if (t.name === "send_tv_message") {
       try { await post(String(inp.text || "").slice(0, 300)); say("💬 Besked sendt til TV'et", "act"); return "Beskeden vises på TV'et"; }
