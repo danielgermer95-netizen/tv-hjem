@@ -324,6 +324,8 @@
     $("note-img").src = ""; $("note-text").textContent = ""; $("note-meta").textContent = "";
     $("note-empty").style.display = "";
   }
+  // Ryd en gammel app-liste, der ved en fejl blev vist som besked
+  (function () { var n = store("note"); if (n && n.text && /^\{"ids"/.test(n.text)) store("note", null); })();
   showNote(store("note"));
 
   function handle(m) {
