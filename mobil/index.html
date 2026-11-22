@@ -141,6 +141,21 @@
   .setup .btns button.pri { background:linear-gradient(135deg,#8b7cff,#5b8cff); }
   .setup ol { padding-left:18px; }
   #jarvis { gap:10px; }
+  .jvoice { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:22px; text-align:center; min-height:0; }
+  .jstatus { font-size:20px; font-weight:700; }
+  .jmic { width:180px; height:180px; border-radius:50%; border:0; position:relative; cursor:pointer;
+          background:radial-gradient(circle at 40% 35%, #a99cff, #5b8cff 55%, #2a3a9a); box-shadow:0 20px 60px rgba(91,140,255,.45); }
+  .jmic span { position:absolute; left:50%; top:50%; width:34px; height:54px; margin:-34px 0 0 -17px; border-radius:17px; background:#fff; }
+  .jmic span::after { content:""; position:absolute; left:-12px; top:30px; width:50px; height:32px; border:5px solid #fff; border-top:0; border-radius:0 0 30px 30px; }
+  .jmic.listen { animation:jpulse 1.1s ease-in-out infinite; }
+  .jmic.think { animation:jspin 1.4s linear infinite; background:conic-gradient(#5b8cff, #a99cff, #5b8cff); }
+  @keyframes jpulse { 50% { transform:scale(1.08); box-shadow:0 0 0 18px rgba(124,140,255,.2), 0 20px 60px rgba(91,140,255,.45); } }
+  @keyframes jspin { to { transform:rotate(360deg); } }
+  .jheard { min-height:24px; font-size:17px; color:var(--mut); font-style:italic; max-width:90%; }
+  .jlast { font-size:18px; line-height:1.4; max-width:92%; color:#fff; opacity:.9; max-height:30vh; overflow-y:auto; }
+  .jtext { display:none; flex:1; flex-direction:column; gap:10px; min-height:0; }
+  #jarvis.typing .jtext { display:flex; } #jarvis.typing .jvoice { display:none; }
+  .jlink { background:none; border:0; color:var(--mut); font-size:13px; font-family:inherit; text-decoration:underline; padding:0; }
   .jlog { flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column; gap:8px; padding:4px 2px; }
   .jmsg { max-width:85%; padding:10px 14px; border-radius:18px; font-size:16px; line-height:1.35; white-space:pre-wrap; }
   .jmsg.bot { align-self:flex-start; background:var(--card); border:1px solid var(--line); border-bottom-left-radius:6px; }
@@ -171,7 +186,7 @@
 </style>
 </head>
 <body>
-  <header><h1>TV Hjem <small style="font-size:11px;opacity:.45;font-weight:500">v35</small></h1><span class="pill" id="status">● Klar</span></header>
+  <header><h1>TV Hjem <small style="font-size:11px;opacity:.45;font-weight:500">v36</small></h1><span class="pill" id="status">● Klar</span></header>
 
   <div class="tabs">
     <button data-tab="fjern" class="on">Fjernb.</button>
@@ -268,12 +283,21 @@
   </section>
 
   <section class="panel" id="jarvis">
-    <div class="jlog" id="jlog"><div class="jmsg bot">Hej! Jeg er Jarvis. Bed mig fx om at sætte Netflix på, skrue ned for lyden eller skrive en besked på TV'et. Tryk på 🎤 på tastaturet for at tale.</div></div>
-    <div class="jrow">
-      <input id="jin" placeholder="Spørg Jarvis…" autocomplete="off" enterkeyhint="send">
-      <button class="jsend" id="jsend" aria-label="Send">➤</button>
+    <div class="jvoice" id="jvoice">
+      <div class="jstatus" id="jstatus">Tryk og tal til Jarvis</div>
+      <button class="jmic" id="jmic" aria-label="Tal til Jarvis"><span></span></button>
+      <div class="jheard" id="jheard"></div>
+      <div class="jlast" id="jlast">Fx “sæt Netflix på”, “skru lidt ned” eller “find en god film til i aften”.</div>
+    </div>
+    <div class="jtext" id="jtext">
+      <div class="jlog" id="jlog"></div>
+      <div class="jrow">
+        <input id="jin" placeholder="Skriv til Jarvis…" autocomplete="off" enterkeyhint="send">
+        <button class="jsend" id="jsend" aria-label="Send">➤</button>
+      </div>
     </div>
     <div class="jopts">
+      <button class="jlink" id="jmode">⌨️ Skriv i stedet</button>
       <label><input type="checkbox" id="jspeak"> Læs svar højt</label>
       <details><summary>Server</summary><input id="jurl" placeholder="https://tv-hjem-jarvis.xxx.workers.dev" autocomplete="off"></details>
     </div>
@@ -644,10 +668,11 @@ var RC = (function () {
   function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
   $("#jurl").value = lsGet("jarvisUrl") || "";
   $("#jurl").onchange = function () { lsSet("jarvisUrl", this.value.trim()); };
-  $("#jspeak").checked = lsGet("jarvisSpeak") === "1";
+  $("#jspeak").checked = lsGet("jarvisSpeak") !== "0"; // tale er standard
   $("#jspeak").onchange = function () { lsSet("jarvisSpeak", this.checked ? "1" : "0"); };
 
   function say(text, cls) {
+    if (cls === "bot" && text !== "…" || cls === "err") $("#jlast").textContent = text;
     var d = document.createElement("div"); d.className = "jmsg " + cls; d.textContent = text;
     $("#jlog").appendChild(d); $("#jlog").scrollTop = 1e9; return d;
   }
@@ -731,10 +756,48 @@ var RC = (function () {
     }
   }
 
+  // ---- Tale: tryk på knappen, tal, og Jarvis går i gang, når du holder pause ----
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition, rec = null, heard = "";
+  function setMic(mode, msg) {
+    $("#jmic").className = "jmic" + (mode ? " " + mode : "");
+    if (msg != null) $("#jstatus").textContent = msg;
+  }
+  function listen() {
+    if (busy) return;
+    if (!SR) { setMic("", "Tale virker ikke i denne browser – brug ⌨️ Skriv i stedet"); return; }
+    if (rec) { rec.stop(); return; }
+    if (window.speechSynthesis) speechSynthesis.cancel();
+    heard = ""; $("#jheard").textContent = "";
+    rec = new SR(); rec.lang = "da-DK"; rec.interimResults = true; rec.continuous = false;
+    rec.onresult = function (e) {
+      var t = ""; for (var i = 0; i < e.results.length; i++) t += e.results[i][0].transcript;
+      heard = t; $("#jheard").textContent = "“" + t + "”";
+    };
+    rec.onerror = function (e) {
+      setMic("", e.error === "not-allowed" ? "Giv adgang til mikrofonen i Indstillinger" : "Jeg hørte ikke noget – prøv igen");
+    };
+    rec.onend = function () {
+      rec = null;
+      var t = heard.trim();
+      if (!t) { if ($("#jmic").classList.contains("listen")) setMic("", "Tryk og tal til Jarvis"); return; }
+      run(t);
+    };
+    try { rec.start(); setMic("listen", "Lytter…"); } catch (e) { rec = null; setMic("", "Kunne ikke starte mikrofonen"); }
+  }
+  function run(t) {
+    busy = true; setMic("think", "Tænker…"); say(t, "me");
+    ask(t).then(done, done);
+  }
+  function done() { busy = false; setMic("", "Tryk og tal til Jarvis"); }
+  $("#jmic").onclick = listen;
+  $("#jmode").onclick = function () {
+    var on = $("#jarvis").classList.toggle("typing");
+    this.textContent = on ? "🎤 Tal i stedet" : "⌨️ Skriv i stedet";
+  };
+
   function send() {
     var v = $("#jin").value.trim(); if (!v || busy) return;
-    $("#jin").value = ""; say(v, "me"); busy = true;
-    ask(v).then(function () { busy = false; }, function () { busy = false; });
+    $("#jin").value = ""; run(v);
   }
   $("#jsend").onclick = send;
   $("#jin").addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); send(); } });
