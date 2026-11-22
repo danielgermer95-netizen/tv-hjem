@@ -158,7 +158,7 @@
 </style>
 </head>
 <body>
-  <header><h1>TV Hjem <small style="font-size:11px;opacity:.45;font-weight:500">v27</small></h1><span class="pill" id="status">● Klar</span></header>
+  <header><h1>TV Hjem <small style="font-size:11px;opacity:.45;font-weight:500">v28</small></h1><span class="pill" id="status">● Klar</span></header>
 
   <div class="tabs">
     <button data-tab="fjern" class="on">Fjernb.</button>
@@ -455,40 +455,7 @@ function setAppIcon(key, dataUrl) {
   b.innerHTML = '<img src="' + dataUrl + '" alt="">';
 }
 function fitTiles() {}
-  /* ---------- Officielle app-ikoner fra App Store (hentes og gemmes lokalt) ---------- */
-var STORE_Q = {
-  drtv: ["DR TV", /^dr\s?tv/i], tv2play: ["TV 2 Play", /tv\s?2\s?play/i], netflix: ["Netflix", /^netflix/i],
-  hbomax: ["HBO Max", /hbo\s?max|^max\b/i], prime: ["Prime Video", /prime\s?video/i], disney: ["Disney+", /disney/i],
-  viaplay: ["Viaplay", /viaplay/i], skyshow: ["SkyShowtime", /sky\s?show\s?time/i], appletv: ["Apple TV", /^(apple\s)?tv$|apple\s?tv/i],
-  youtube: ["YouTube", /^youtube[:\s]*$|^youtube: watch/i], spotify: ["Spotify", /spotify/i], playstation: ["PlayStation App", /playstation/i]
-};
-function storeIcons(onIcon) {
-  var cache = {}; try { cache = JSON.parse(localStorage.getItem("icons_v1")) || {}; } catch (e) {}
-  var fresh = cache._t && Date.now() - cache._t < 7 * 864e5;
-  Object.keys(STORE_Q).forEach(function (k) { if (cache[k]) onIcon(k, cache[k]); });
-  if (fresh) return;
-  cache._t = Date.now();
-  Object.keys(STORE_Q).forEach(function (k, i) {
-    var cb = "__ic" + i + "_" + Date.now(), s = document.createElement("script");
-    window[cb] = function (res) {
-      delete window[cb]; s.parentNode && s.parentNode.removeChild(s);
-      var list = (res && res.results) || [], hit = null;
-      for (var j = 0; j < list.length; j++) if (STORE_Q[k][1].test(list[j].trackName || "")) { hit = list[j]; break; }
-      if (!hit || !hit.artworkUrl512) return;
-      cache[k] = hit.artworkUrl512.replace(/\/\d+x\d+bb\./, "/256x256bb.");
-      try { localStorage.setItem("icons_v1", JSON.stringify(cache)); } catch (e) {}
-      onIcon(k, cache[k]);
-    };
-    s.src = "https://itunes.apple.com/search?entity=software&country=dk&limit=8&term=" + encodeURIComponent(STORE_Q[k][0]) + "&callback=" + cb;
-    s.onerror = function () { delete window[cb]; };
-    document.head.appendChild(s);
-  });
-}
-storeIcons(function (k, url) {
-  var b = document.querySelector('.app[data-key="' + k + '"]'); if (!b || b.classList.contains("real")) return;
-  var img = new Image(); img.onload = function () { setAppIcon(k, url); }; img.src = url;
-});
-$("#clearNote").onclick = function () { post("clear", { "Title": "cmd" }).then(function () { toast("Beskeden er fjernet"); }); };
+  $("#clearNote").onclick = function () { post("clear", { "Title": "cmd" }).then(function () { toast("Beskeden er fjernet"); }); };
 
 // ---------- Fjernbetjening: direkte til TV'et over Wi-Fi ----------
 var RC = (function () {
