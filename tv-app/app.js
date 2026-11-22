@@ -244,10 +244,24 @@
   }
   if (HAS_TIZEN) {
     try {
-      tizen.application.getAppsInfo(function (list) { installed = list; markMissing(); }, function () {});
+      tizen.application.getAppsInfo(function (list) { installed = list; markMissing(); publishApps(); }, function () {});
     } catch (e) {}
   }
   buildDock();
+
+  /* Send TV'ets egne app-ID'er til mobilen, så den kan åbne apps med de rigtige ID'er */
+  function publishApps() {
+    if (!C.kanal || !installed.length) return;
+    var out = {};
+    C.apps.forEach(function (a) { var f = findInfo(a); if (f) out[a.key] = f.id; });
+    var all = installed.map(function (x) { return x.name + "|" + x.id; }).filter(function (s) { return s.length < 120; }).slice(0, 80);
+    try {
+      var x = new XMLHttpRequest();
+      x.open("POST", "https://ntfy.sh/" + encodeURIComponent(C.kanal));
+      x.setRequestHeader("Title", "apps");
+      x.send(JSON.stringify({ ids: out, all: all }));
+    } catch (e) {}
+  }
   /* ---------- TV'ets egen fjernbetjenings-API (til HDMI-skift) ---------- */
   function sendKey(key, fejltekst) {
     var name = btoa("TV Hjem"), token = store("rc_token"), urls = [

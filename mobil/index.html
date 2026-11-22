@@ -158,7 +158,7 @@
 </style>
 </head>
 <body>
-  <header><h1>TV Hjem <small style="font-size:11px;opacity:.45;font-weight:500">v30</small></h1><span class="pill" id="status">● Klar</span></header>
+  <header><h1>TV Hjem <small style="font-size:11px;opacity:.45;font-weight:500">v31</small></h1><span class="pill" id="status">● Klar</span></header>
 
   <div class="tabs">
     <button data-tab="fjern" class="on">Fjernb.</button>
@@ -180,6 +180,7 @@
       <input id="hdmi" inputmode="numeric" placeholder="PlayStation sidder i HDMI nr. (1-4)" autocomplete="off">
       <div class="btns"><button id="trust">Godkend TV</button><button class="pri" id="connect">Forbind</button></div>
       <details id="appsDbg"><summary>TV'ets apps (til fejlfinding)</summary><div id="appsList">Forbind først…</div></details>
+      <details><summary style="color:#fff;font-weight:600">App-ID'er fra Hjem på TV'et</summary><div id="tvAppsList" style="margin-top:8px;font-size:12px;line-height:1.6;word-break:break-all;user-select:text;-webkit-user-select:text">Henter…</div></details>
     </div>
 
     <div class="r4">
@@ -526,7 +527,23 @@ var RC = (function () {
     var ip = get("tvip");
     if (ip && window.fetch) fetch("https://" + ip + ":8002/api/v2/applications/" + encodeURIComponent(id), { method: "POST", mode: "no-cors" }).catch(function () {});
   }
+  // App-ID'er som Hjem-appen på TV'et har sendt (de mest pålidelige)
+  var tvIds = {};
+  try { tvIds = JSON.parse(localStorage.getItem("tvIds")) || {}; } catch (e) {}
+  function loadTvIds() {
+    fetch(NTFY + "/json?poll=1&since=7d").then(function (r) { return r.text(); }).then(function (txt) {
+      var last = null;
+      txt.split("\n").forEach(function (l) { try { var m = JSON.parse(l); if (m.title === "apps") last = m; } catch (e) {} });
+      if (!last) { $("#tvAppsList").textContent = "Ingen liste endnu – åbn Hjem på TV'et"; return; }
+      var d = JSON.parse(last.message);
+      tvIds = d.ids || {}; try { localStorage.setItem("tvIds", JSON.stringify(tvIds)); } catch (e) {}
+      $("#tvAppsList").innerHTML = "<b>Brugt af appen:</b><br>" + Object.keys(tvIds).map(function (k) { return k + " → " + tvIds[k]; }).join("<br>") +
+        "<br><br><b>Alle apps på TV'et:</b><br>" + (d.all || []).map(function (s) { return s.replace("|", " – "); }).join("<br>");
+    }).catch(function () { $("#tvAppsList").textContent = "Kunne ikke hente listen"; });
+  }
+  loadTvIds();
   function appId(k) {
+    if (tvIds[k]) return tvIds[k];
     for (var i = 0; i < apps.length; i++) if (MATCH[k] && MATCH[k].test(apps[i].name)) return apps[i].appId;
     return KNOWN[k] || null;
   }
