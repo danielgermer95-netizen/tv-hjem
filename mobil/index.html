@@ -492,7 +492,7 @@ $("#clearNote").onclick = function () { post("clear", { "Title": "cmd" }).then(f
 
 // ---------- Fjernbetjening: direkte til TV'et over Wi-Fi ----------
 var RC = (function () {
-  var ws = null, state = "off", queue = [], apps = [], pendingTimer, iconFor = {}, iconDone = {}, everOk = false, retryT;
+  var ws = null, state = "off", queue = [], apps = [], pendingTimer, iconFor = {}, iconDone = {}, everOk = false, retryT, backoff = 1000;
   var NAME = btoa("TV Hjem mobil");
   var KNOWN = { netflix: "3201907018807", youtube: "111299001912", prime: "3201910019365", disney: "3201901017640",
                 appletv: "3201807016597", spotify: "3201606009684" };
@@ -523,7 +523,7 @@ var RC = (function () {
       var m; try { m = JSON.parse(ev.data); } catch (e) { return; }
       if (m.event === "ms.channel.connect") {
         if (m.data && m.data.token) set("tvtoken", m.data.token);
-        ui("on", "Forbundet til TV'et"); everOk = true;
+        ui("on", "Forbundet til TV'et"); everOk = true; backoff = 1000;
         $("#setup").classList.remove("on");
         raw({ method: "ms.channel.emit", params: { event: "ed.installedApp.get", to: "host" } });
         while (queue.length) ws.send(queue.shift());
@@ -531,18 +531,6 @@ var RC = (function () {
       } else if (m.event === "ed.installedApp.get" && m.data && m.data.data) {
         apps = m.data.data;
         $("#appsList").innerHTML = apps.map(function (a) { return "<b>" + a.name + "</b> – " + a.appId; }).join("<br>") || "Ingen apps modtaget";
-        // Bed TV'et om de rigtige ikoner
-        Object.keys(MATCH).forEach(function (k) {
-          for (var i = 0; i < apps.length; i++) if (MATCH[k].test(apps[i].name) && apps[i].icon) {
-            iconFor[apps[i].icon] = k;
-            raw({ method: "ms.channel.emit", params: { event: "ed.apps.icon", to: "host", data: { iconPath: apps[i].icon } } });
-            break;
-          }
-        });
-      } else if (m.event === "ed.apps.icon" && m.data && m.data.imageBase64) {
-        var k = iconFor[m.data.iconPath] || null;
-        if (!k) { for (var p in iconFor) if (!iconDone[p]) { k = iconFor[p]; iconDone[p] = 1; break; } }
-        if (k && k !== "hjem") setAppIcon(k, "data:image/png;base64," + m.data.imageBase64);
       } else if (m.event === "ms.channel.unauthorized") {
         ui("off", "TV'et afviste forbindelsen"); toast("Tillad forbindelsen på TV'et og prøv igen");
       }
@@ -553,7 +541,8 @@ var RC = (function () {
       if (state === "wait" && !everOk) return fail();
       ui("off", "Ikke forbundet");
       // Forbind straks igen i baggrunden, så næste tryk virker med det samme
-      if (!document.hidden) { clearTimeout(retryT); retryT = setTimeout(connect, 600); }
+      // (med stigende pause, så vi ikke hamrer løs på TV'et, hvis det er slukket)
+      if (!document.hidden) { clearTimeout(retryT); retryT = setTimeout(connect, backoff); backoff = Math.min(backoff * 2, 15000); }
     };
     me.onerror = function () {};
   }
@@ -656,6 +645,7 @@ var RC = (function () {
   function fresh() {
     if (!get("tvip") || document.hidden) return;
     if (ws) { var old = ws; ws = null; try { old.close(); } catch (e) {} }
+    clearTimeout(retryT); backoff = 1000;
     state = "off"; connect();
   }
   document.addEventListener("visibilitychange", function () { if (!document.hidden) fresh(); });
