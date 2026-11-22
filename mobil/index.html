@@ -52,20 +52,20 @@
   #toast.on { opacity:1; transform:translateX(-50%); }
 
   /* ---------- Fjernbetjening ---------- */
-  #fjern { gap:14px; justify-content:space-between; overflow-y:auto; }
+  #fjern { gap:12px; justify-content:space-between; overflow-y:auto; -webkit-overflow-scrolling:touch; padding-bottom:8px; }
   .conn { display:flex; align-items:center; gap:10px; padding:12px 14px; border-radius:16px; border:1px solid var(--line); background:var(--card); font-size:14px; color:var(--mut); width:100%; text-align:left; font-family:inherit; }
   .conn b { color:#fff; font-weight:600; }
   .conn i { width:9px; height:9px; border-radius:50%; background:#ff6b6b; flex:none; }
   .conn.ok i { background:#3ddc97; box-shadow:0 0 10px #3ddc97; }
   .conn.wait i { background:#ffd25a; }
   .conn span { margin-left:auto; font-size:13px; }
-  .r4 { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
-  .rb { border:1px solid var(--line); background:var(--card); color:#fff; border-radius:18px; height:58px; font-family:inherit;
+  .r4 { flex:none; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
+  .rb { border:1px solid var(--line); background:var(--card); color:#fff; border-radius:18px; height:min(58px,6.6vh); font-family:inherit;
         display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; font-size:11px; font-weight:600; color:var(--mut); user-select:none; -webkit-user-select:none; }
   .rb svg { width:22px; height:22px; stroke:#fff; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
   .rb:active, .rb.down { background:rgba(255,255,255,.2); transform:scale(.96); }
   .rb.power svg { stroke:#ff6b6b; }
-  .pad { position:relative; width:min(68vw,260px); aspect-ratio:1; margin:0 auto; border-radius:50%;
+  .pad { position:relative; flex:none; width:min(64vw,32vh,250px); aspect-ratio:1; margin:0 auto; border-radius:50%;
          background:radial-gradient(circle at 50% 40%, rgba(255,255,255,.12), rgba(255,255,255,.04)); border:1px solid var(--line); }
   .pad button { position:absolute; border:0; background:none; color:#fff; font-family:inherit; display:flex; align-items:center; justify-content:center; user-select:none; -webkit-user-select:none; }
   .pad .d { width:34%; height:34%; }
@@ -75,13 +75,13 @@
   .pad .ok { left:32%; top:32%; width:36%; height:36%; border-radius:50%; background:linear-gradient(135deg,#8b7cff,#5b8cff);
              font-weight:800; font-size:18px; box-shadow:0 8px 24px rgba(91,140,255,.45); }
   .pad .ok:active, .pad .ok.down { transform:scale(.94); }
-  .rockers { display:grid; grid-template-columns:1fr auto 1fr; gap:12px; align-items:stretch; }
+  .rockers { flex:none; display:grid; grid-template-columns:1fr auto 1fr; gap:12px; align-items:stretch; }
   .rocker { display:flex; flex-direction:column; border:1px solid var(--line); background:var(--card); border-radius:22px; overflow:hidden; }
-  .rocker button { flex:1; height:56px; border:0; background:none; color:#fff; font-size:26px; font-weight:300; font-family:inherit; user-select:none; -webkit-user-select:none; }
+  .rocker button { flex:1; height:min(52px,6vh); border:0; background:none; color:#fff; font-size:26px; font-weight:300; font-family:inherit; user-select:none; -webkit-user-select:none; }
   .rocker button:active, .rocker button.down { background:rgba(255,255,255,.18); }
   .rocker small { text-align:center; font-size:11px; font-weight:600; color:var(--mut); padding:2px 0; letter-spacing:1px; }
   .mid { display:flex; flex-direction:column; gap:10px; justify-content:center; }
-  .mid .rb { width:64px; }
+  .mid .rb { width:64px; height:min(52px,6vh); }
   .setup { display:none; flex-direction:column; gap:10px; padding:14px; border-radius:18px; border:1px solid var(--line); background:var(--card); font-size:14px; color:var(--mut); line-height:1.45; }
   .setup.on { display:flex; }
   .setup input { width:100%; padding:12px 14px; border-radius:12px; border:1px solid var(--line); background:rgba(0,0,0,.25); color:#fff; font-size:17px; font-family:inherit; outline:none; }
