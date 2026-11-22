@@ -183,6 +183,7 @@
 
   <section class="panel" id="apps">
     <div class="grid" id="grid"></div>
+    <button class="send" id="openHome">Åbn startskærmen på TV'et</button>
     <button class="ghost" id="clearNote">Fjern besked fra TV'et</button>
   </section>
 
@@ -406,16 +407,27 @@ var RC = (function () {
     var on = $("#numpad").classList.toggle("on"); this.classList.toggle("on", on);
     document.querySelector(".pad").style.display = on ? "none" : "";
   };
+  function openBrowserHome() {
+    var url = location.origin + location.pathname.replace(/mobil\/?(index\.html)?$/, "") + "tv-app/#k=" + KANAL;
+    raw({ method: "ms.channel.emit", params: { event: "ed.apps.launch", to: "host",
+          data: { appId: "org.tizen.browser", action_type: "NATIVE_LAUNCH", metaTag: url } } });
+    toast("Åbner startskærmen i TV'ets browser");
+  }
+  $("#openHome").onclick = function () {
+    if (!ready()) { toast("Forbind fjernbetjeningen først"); return connect(); }
+    openBrowserHome();
+  };
   $("#hjemApp").onclick = function () {
-    var id = appId("hjem") || "TvHjem0001.TvHjem";
-    launch(id); toast("Åbner Hjem på TV'et");
+    var id = appId("hjem");
+    if (id) { launch(id); toast("Åbner Hjem på TV'et"); } else openBrowserHome();
   };
 
   // Genforbind når appen kommer frem igen
   document.addEventListener("visibilitychange", function () { if (!document.hidden && get("tvip") && state !== "on") connect(); });
   if (get("tvip")) connect(); else ui("off", "Ikke forbundet");
 
-  return { key: key, launch: launch, appId: appId, ready: function () { return state === "on"; } };
+  function ready() { return state === "on"; }
+  return { key: key, launch: launch, appId: appId, ready: ready };
 })();
 </script>
 </body>
