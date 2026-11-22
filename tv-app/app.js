@@ -215,7 +215,7 @@
       if (a.hdmi) return;
       if (!findApp(a)) return tiles[i].classList.add("missing");
       // Brug appens rigtige ikon fra TV'et
-      return; // Bruger de egne ikoner
+      if (a.key === "youtube") return; // TV'et giver YouTube et forkert standard-ikon
       var info = findInfo(a), src = info && info.iconPath;
       if (!src) return;
       if (src.indexOf("://") < 0) src = "file://" + src;
