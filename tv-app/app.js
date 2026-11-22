@@ -250,7 +250,7 @@
   loadWeather(); setInterval(loadWeather, 15 * 60 * 1000);
 
   /* ---------- Automatisk opdatering: genindlæs når der er en ny version på GitHub ---------- */
-  var APP_VERSION = "45";
+  var APP_VERSION = "48";
   function checkVersion() {
     if (DEMO || location.protocol === "file:") return;
     var x = new XMLHttpRequest();
@@ -478,6 +478,13 @@
     }
     function show(d) {
       if (d.state === "close") { try { if (audio) audio.pause(); } catch (e) {} return close(); }
+      // Brugeren afbryder: stop stemmen, men behold skærmen
+      if (d.state === "stop") { try { if (audio) audio.pause(); } catch (e) {} return; }
+      // Lytter videre efter et svar: skift kun mærket, behold svar og forslag
+      if (d.state === "listening-keep") {
+        if (el.classList.contains("hidden")) d = { state: "listening" };
+        else { el.querySelector("#jv-pill").textContent = "Lytter…"; busy = false; autoHide(items.length ? 180 : 120); return; }
+      }
       if (d.state === "answer" && d.tts) sayAloud(d.tts, d.text);
       // Er der allerede forslag på skærmen, så lad "klar" ikke skjule dem
       if (d.state === "ready" && items.length && !el.classList.contains("hidden")) return;

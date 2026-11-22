@@ -187,7 +187,7 @@
 </style>
 </head>
 <body>
-  <header><h1>TV Hjem <small style="font-size:11px;opacity:.45;font-weight:500">v47</small></h1><span class="pill" id="status">● Klar</span></header>
+  <header><h1>TV Hjem <small style="font-size:11px;opacity:.45;font-weight:500">v48</small></h1><span class="pill" id="status">● Klar</span></header>
 
   <div class="tabs">
     <button data-tab="fjern" class="on">Fjernb.</button>
@@ -288,7 +288,7 @@
       <div class="jstatus" id="jstatus">Tryk og tal til Jarvis</div>
       <button class="jmic" id="jmic" aria-label="Tal til Jarvis"><span></span></button>
       <div class="jheard" id="jheard"></div>
-      <div class="jlast" id="jlast">Tryk én gang og tal frit – Jarvis lytter igen, når den har svaret. Sig “tak” for at slutte.</div>
+      <div class="jlast" id="jlast">Tryk én gang – så lytter Jarvis hele tiden, og du kan afbryde ham. Sig “tak” eller tryk igen for at slutte.</div>
     </div>
     <div class="jtext" id="jtext">
       <div class="jlog" id="jlog"></div>
@@ -649,7 +649,7 @@ var RC = (function () {
 
 // ---------- Automatisk opdatering: tjek om der er kommet en ny version ----------
 (function () {
-  var MINE = "47", last = 0;
+  var MINE = "48", last = 0;
   function check() {
     if (Date.now() - last < 60000) return; last = Date.now();
     fetch("version.txt?t=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.ok ? r.text() : ""; }).then(function (v) {
@@ -767,15 +767,12 @@ var RC = (function () {
   var speaking = null;
   function speak(text) {
     if (!$("#jspeak").checked) return;
-    if (tvVoice()) {
-      // TV'et taler: vent omtrent den tid, det tager, før vi lytter igen
-      speaking = new Promise(function (res) { setTimeout(res, 2500 + text.length * 75); });
-      return;
-    }
+    sayText = text; sayUntil = Date.now() + 2500 + text.length * 75;
+    if (tvVoice()) return;
     if (!window.speechSynthesis) return;
     var u = new SpeechSynthesisUtterance(text); u.lang = (lsGet("jarvisLang") || "da") === "en" ? "en-GB" : "da-DK"; speechSynthesis.cancel();
     speaking = new Promise(function (res) {
-      u.onend = u.onerror = res;
+      u.onend = u.onerror = function () { sayUntil = Date.now(); res(); };
       setTimeout(res, 2000 + text.length * 90); // sikkerhed, hvis onend aldrig kommer
     });
     speechSynthesis.speak(u);
@@ -866,57 +863,90 @@ var RC = (function () {
     }
   }
 
-  // ---- Tale: tryk på knappen, tal, og Jarvis går i gang, når du holder pause ----
-  var SR = window.SpeechRecognition || window.webkitSpeechRecognition, rec = null, heard = "";
+  // ---- Live-samtale: Jarvis lytter hele tiden, og du kan afbryde ham ----
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition, rec = null;
+  var live = false, buf = "", commitT = null, errs = 0, queued = null, lastFinalIdx = 0;
   function setMic(mode, msg) {
     $("#jmic").className = "jmic" + (mode ? " " + mode : "");
     if (msg != null) $("#jstatus").textContent = msg;
   }
-  var convo = false, autoTurn = false;
-  function endConvo(msg) {
-    convo = false; autoTurn = false;
+  function status() {
+    if (!live) return setMic("", "Tryk og tal til Jarvis");
+    if (busy) return setMic("think live", "Tænker… (du kan bare tale)");
+    if (jSaying()) return setMic("listen", "Jarvis taler – afbryd bare");
+    setMic("listen", "Jeg lytter…");
+  }
+  // Hvad siger Jarvis lige nu? (bruges til at sortere hans egen stemme fra)
+  var sayText = "", sayUntil = 0;
+  function jSaying() { return Date.now() < sayUntil; }
+  function words(t) { return (t || "").toLowerCase().replace(/[^a-zæøå0-9 ]/g, " ").split(/\s+/).filter(Boolean); }
+  function isEcho(t) {
+    if (!jSaying() && Date.now() - sayUntil > 1500) return false;
+    var w = words(t), j = words(sayText); if (!w.length) return true;
+    var hit = w.filter(function (x) { return j.indexOf(x) >= 0; }).length;
+    return hit / w.length >= 0.5;
+  }
+  function stopTalking() {
+    sayUntil = 0;
+    if (window.speechSynthesis) speechSynthesis.cancel();
+    toTV({ state: "stop" });
+  }
+  function endLive(msg) {
+    live = false; clearTimeout(commitT); buf = "";
     if (rec) { try { rec.abort ? rec.abort() : rec.stop(); } catch (e) {} rec = null; }
+    $("#jheard").textContent = "";
     setMic("", msg || "Tryk og tal til Jarvis");
   }
   function tapMic() {
-    if (convo && !busy) return endConvo("Samtalen er slut – tryk for at tale igen");
-    if (busy) return;
-    convo = true; autoTurn = false; listen();
-  }
-  function listen() {
-    if (busy) return;
-    if (!SR) { unlockSpeech(); return typeFallback("Tale virker ikke her"); }
-    if (rec) { rec.stop(); return; }
+    if (live) return endLive("Samtalen er slut – tryk for at tale igen");
     unlockSpeech();
-    heard = ""; $("#jheard").textContent = "";
-    toTV({ state: "listening" });
-    rec = new SR(); rec.lang = "da-DK"; rec.interimResults = true; rec.continuous = false;
+    if (!SR) return typeFallback("Tale virker ikke her");
+    live = true; errs = 0; toTV({ state: "listening" }); startRec(); status();
+  }
+  function startRec() {
+    if (!live || rec) return;
+    rec = new SR(); rec.lang = "da-DK"; rec.interimResults = true; rec.continuous = true; lastFinalIdx = 0;
     rec.onresult = function (e) {
-      var t = ""; for (var i = 0; i < e.results.length; i++) t += e.results[i][0].transcript;
-      heard = t; $("#jheard").textContent = "“" + t + "”";
+      errs = 0;
+      var fin = "", interim = "";
+      for (var i = e.resultIndex; i < e.results.length; i++) {
+        var seg = e.results[i][0].transcript;
+        // Jarvis' egen stemme fra TV'et sorteres fra sætning for sætning
+        if (isEcho(seg)) continue;
+        if (e.results[i].isFinal) fin += seg + " "; else interim += seg;
+      }
+      if (fin) buf += fin;
+      var shown = (buf + interim).trim();
+      if (!shown) return;
+      $("#jheard").textContent = "“" + shown + "”";
+      // Du taler, mens Jarvis taler: stop ham
+      if (jSaying() && words(shown).length >= 2) stopTalking();
+      // Når du holder en kort pause, sendes det, du har sagt
+      clearTimeout(commitT);
+      commitT = setTimeout(function () { commit((buf + interim).trim()); }, fin && !interim ? 700 : 1300);
     };
     rec.onerror = function (e) {
-      setMic("", e.error === "not-allowed" ? "Giv adgang til mikrofonen i Indstillinger" : "Jeg hørte ikke noget – prøv igen");
+      if (e.error === "not-allowed" || e.error === "service-not-allowed") { endLive(); return typeFallback("Giv adgang til mikrofonen"); }
+      errs++;
     };
     rec.onend = function () {
       rec = null;
-      var t = heard.trim();
-      if (!t) { if (autoTurn) endConvo("Samtalen er slut – tryk for at tale igen"); else if ($("#jmic").classList.contains("listen")) setMic("", "Tryk og tal til Jarvis"); return; }
-      // "tak", "stop", "farvel" afslutter samtalen
-      if (convo && /^(stop|tak|tak skal du have|farvel|det var det|det var alt|ikke mere|slut)[.!]?$/i.test(t)) {
-        say(t, "me"); endConvo("Samtalen er slut – tryk for at tale igen"); toTV({ state: "ready" }); return;
-      }
-      run(t);
+      // iPhone stopper selv indimellem – start igen, så længe samtalen er i gang
+      if (live && errs < 6 && !document.hidden) setTimeout(startRec, 250);
+      else if (live) endLive("Mikrofonen stoppede – tryk for at tale igen");
     };
-    try { rec.start(); setMic("listen", "Lytter…"); } catch (e) { rec = null; return typeFallback("Mikrofonen kunne ikke starte"); }
-    // Hører den intet, så giv op og brug tastaturets mikrofon i stedet
-    var mine = rec;
-    setTimeout(function () {
-      if (rec === mine && !heard) {
-        try { rec.abort ? rec.abort() : rec.stop(); } catch (e) {} rec = null;
-        if (autoTurn) endConvo("Samtalen er slut – tryk for at tale igen"); else { convo = false; typeFallback("Jeg kunne ikke høre dig"); }
-      }
-    }, 8000);
+    try { rec.start(); } catch (e) { rec = null; errs++; if (live && errs < 6) setTimeout(startRec, 500); }
+  }
+  function commit(t) {
+    buf = ""; $("#jheard").textContent = "";
+    // Genstart genkendelsen, så næste sætning starter på en frisk
+    if (rec) { try { rec.stop(); } catch (e) {} }
+    if (!t || isEcho(t)) return status();
+    if (/^(stop|tak|tak skal du have|farvel|det var det|det var alt|ikke mere|slut|thank you|goodbye)[.!]?$/i.test(t)) {
+      say(t, "me"); endLive("Samtalen er slut – tryk for at tale igen"); toTV({ state: "ready" }); return;
+    }
+    if (busy) { queued = t; return; }
+    run(t);
   }
   // iPhone taler kun højt, hvis det starter med et tryk – "lås op" med en tom sætning
   var unlocked = false;
@@ -931,24 +961,19 @@ var RC = (function () {
     setTimeout(function () { $("#jin").focus(); }, 50);
   }
   function run(t) {
-    busy = true; setMic("think", "Tænker…"); say(t, "me");
+    busy = true; say(t, "me"); status();
     ask(t).then(done, done);
   }
   function done() {
     busy = false;
-    if (!convo || document.hidden || !document.querySelector("#jarvis").classList.contains("on") || $("#jarvis").classList.contains("typing")) {
-      convo = false; setMic("", "Tryk og tal til Jarvis"); return;
-    }
-    // Vent til Jarvis er færdig med at tale, og lyt så igen
-    setMic("", "Jarvis taler…");
-    Promise.resolve(speaking).then(function () {
-      speaking = null;
-      if (!convo || busy) return;
-      autoTurn = true;
-      setTimeout(listen, 350);
-    });
+    if (queued) { var q = queued; queued = null; return run(q); }
+    if (live) toTV({ state: "listening-keep" });
+    status();
   }
+  // Holder øje med, hvornår Jarvis er færdig med at tale, så status passer
+  setInterval(function () { if (live && !busy) status(); }, 800);
   $("#jmic").onclick = tapMic;
+  document.addEventListener("visibilitychange", function () { if (document.hidden && live) endLive(); });
   $("#jclose").onclick = function () { toTV({ state: "close" }); toast("Jarvis er lukket på TV'et"); };
   // Lukkes appen eller skifter du til en anden app, så luk også Jarvis på TV'et
   document.addEventListener("visibilitychange", function () {
