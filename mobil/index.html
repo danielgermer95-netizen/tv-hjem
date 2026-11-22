@@ -467,6 +467,7 @@ var RC = (function () {
         $("#setup").classList.remove("on");
         raw({ method: "ms.channel.emit", params: { event: "ed.installedApp.get", to: "host" } });
         while (queue.length) ws.send(queue.shift());
+        runAction();
       } else if (m.event === "ed.installedApp.get" && m.data && m.data.data) {
         apps = m.data.data;
         $("#appsList").innerHTML = apps.map(function (a) { return "<b>" + a.name + "</b> – " + a.appId; }).join("<br>") || "Ingen apps modtaget";
@@ -568,6 +569,23 @@ var RC = (function () {
     toast("Åbner Hjem på TV'et");
   }
   $("#openHome").onclick = openHjem;
+
+  // Genveje: åbn adressen med fx #do=hjem eller #do=netflix, så udføres handlingen automatisk
+  // (bruges af en Siri-genvej: tænd TV'et → åbn denne adresse)
+  var pending = (location.hash.match(/do=(\w+)/) || [])[1] || null, tries = 0;
+  function runAction() {
+    if (!pending) return;
+    var act = pending; pending = null;
+    if (act === "hjem") return openHjem();
+    var b = document.querySelector('.app[data-key="' + act + '"]');
+    if (b) b.click();
+  }
+  // TV'et kan være et par sekunder om at vågne – prøv at forbinde igen et stykke tid
+  if (pending) (function wake() {
+    if (!pending || ready() || ++tries > 15) return;
+    if (!ws) connect();
+    setTimeout(wake, 2000);
+  })();
   $("#hjemApp").onclick = function () {
     openHjem();
   };
