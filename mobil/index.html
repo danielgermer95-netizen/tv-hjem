@@ -167,6 +167,7 @@
   .jsend { width:52px; border-radius:16px; border:0; background:linear-gradient(135deg,#8b7cff,#5b8cff); color:#fff; font-size:20px; }
   .jopts { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; font-size:13px; color:var(--mut); }
   .jopts details { text-align:right; } .jopts summary { cursor:pointer; }
+  .jopts details select { margin-top:6px; width:230px; padding:8px 10px; border-radius:10px; border:1px solid var(--line); background:rgba(0,0,0,.25); color:#fff; font-size:13px; }
   .jopts details input { margin-top:6px; width:230px; padding:8px 10px; border-radius:10px; border:1px solid var(--line); background:rgba(0,0,0,.25); color:#fff; font-size:13px; }
   #appsDbg summary { cursor:pointer; color:#fff; font-weight:600; }
   #appsList { margin-top:8px; font-size:12px; line-height:1.6; user-select:text; -webkit-user-select:text; word-break:break-all; }
@@ -186,7 +187,7 @@
 </style>
 </head>
 <body>
-  <header><h1>TV Hjem <small style="font-size:11px;opacity:.45;font-weight:500">v45</small></h1><span class="pill" id="status">● Klar</span></header>
+  <header><h1>TV Hjem <small style="font-size:11px;opacity:.45;font-weight:500">v46</small></h1><span class="pill" id="status">● Klar</span></header>
 
   <div class="tabs">
     <button data-tab="fjern" class="on">Fjernb.</button>
@@ -304,6 +305,7 @@
       <details><summary>Indstillinger</summary>
         <input id="jurl" placeholder="Jarvis-server (…workers.dev)" autocomplete="off">
         <input id="jtmdb" placeholder="TMDB-nøgle (API Read Access Token)" autocomplete="off">
+        <select id="jlang"><option value="da">Jarvis svarer på dansk</option><option value="en">Jarvis answers in English</option></select>
       </details>
     </div>
   </section>
@@ -647,7 +649,7 @@ var RC = (function () {
 
 // ---------- Automatisk opdatering: tjek om der er kommet en ny version ----------
 (function () {
-  var MINE = "45", last = 0;
+  var MINE = "46", last = 0;
   function check() {
     if (Date.now() - last < 60000) return; last = Date.now();
     fetch("version.txt?t=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.ok ? r.text() : ""; }).then(function (v) {
@@ -682,7 +684,9 @@ var RC = (function () {
         ["heading", "items"]) }
   ];
   function context() {
-    return "Du kan IKKE se TV-skærmen. Navigér derfor ikke blindt rundt i menuer med piletaster; åbn hellere apps direkte og sig ærligt, hvis noget kræver at brugeren selv vælger på skærmen. " +
+    var en = (lsGet("jarvisLang") || "da") === "en";
+    return (en ? "VIGTIGT – SPROG: Brugeren har valgt engelsk. Svar ALTID på engelsk, også når brugeren taler dansk. Tal som en høflig, rolig britisk butler med tør humor – kort og elegant. Titler, tjenester og stednavne beholdes som de er. " : "") +
+      "Du kan IKKE se TV-skærmen. Navigér derfor ikke blindt rundt i menuer med piletaster; åbn hellere apps direkte og sig ærligt, hvis noget kræver at brugeren selv vælger på skærmen. " +
       "Når brugeren vil se noget, så brug show_suggestions og nævn kort forslagene; sig at hvilken tjeneste en titel ligger på kan have ændret sig. " +
       "Tidspunkt nu: " + new Date().toLocaleString("da-DK") + ". " + (lastAct ? "Seneste handling: " + lastAct + "." : "");
   }
@@ -739,6 +743,8 @@ var RC = (function () {
   function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
   $("#jurl").value = lsGet("jarvisUrl") || "";
   $("#jurl").onchange = function () { lsSet("jarvisUrl", this.value.trim()); };
+  $("#jlang").value = lsGet("jarvisLang") || "da";
+  $("#jlang").onchange = function () { lsSet("jarvisLang", this.value); hist = []; };
   $("#jtmdb").value = lsGet("tmdbKey") || "";
   $("#jtmdb").onchange = function () { lsSet("tmdbKey", this.value.trim()); };
   $("#jspeak").checked = lsGet("jarvisSpeak") !== "0"; // tale er standard
@@ -761,7 +767,7 @@ var RC = (function () {
       return;
     }
     if (!window.speechSynthesis) return;
-    var u = new SpeechSynthesisUtterance(text); u.lang = "da-DK"; speechSynthesis.cancel();
+    var u = new SpeechSynthesisUtterance(text); u.lang = (lsGet("jarvisLang") || "da") === "en" ? "en-GB" : "da-DK"; speechSynthesis.cancel();
     speaking = new Promise(function (res) {
       u.onend = u.onerror = res;
       setTimeout(res, 2000 + text.length * 90); // sikkerhed, hvis onend aldrig kommer
