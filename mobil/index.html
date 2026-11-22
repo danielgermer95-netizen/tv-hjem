@@ -196,7 +196,7 @@
 </style>
 </head>
 <body>
-  <header><h1>TV Hjem <small style="font-size:11px;opacity:.45;font-weight:500">v52</small></h1><span class="pill" id="status">● Klar</span></header>
+  <header><h1>TV Hjem <small style="font-size:11px;opacity:.45;font-weight:500">v53</small></h1><span class="pill" id="status">● Klar</span></header>
 
   <div class="tabs">
     <button data-tab="fjern" class="on">Fjernb.</button>
@@ -648,7 +648,12 @@ var RC = (function () {
     else { launch("TvHjem0001.TvHjem"); launch("TvHjem0001"); }
     toast("Åbner Hjem på TV'et");
   }
-  $("#hjemApp").onclick = openHjem;
+  // Hjem-knappen: gå til Hjem og luk Jarvis-skærmen på TV'et
+  $("#hjemApp").onclick = function () {
+    openHjem();
+    post(JSON.stringify({ state: "close" }), { "Title": "jarvis" }).catch(function () {});
+    if (window.jarvisEndLive) window.jarvisEndLive();
+  };
   $("#openHome").onclick = openHjem;
   var pending = (location.hash.match(/do=(\w+)/) || [])[1] || null;
   function runAction() {
@@ -673,7 +678,7 @@ var RC = (function () {
 
 // ---------- Automatisk opdatering: tjek om der er kommet en ny version ----------
 (function () {
-  var MINE = "52", last = 0;
+  var MINE = "53", last = 0;
   function check() {
     if (Date.now() - last < 60000) return; last = Date.now();
     fetch("version.txt?t=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.ok ? r.text() : ""; }).then(function (v) {
@@ -1045,6 +1050,7 @@ var RC = (function () {
   // Holder øje med, hvornår Jarvis er færdig med at tale, så status passer
   setInterval(function () { if (live && !busy) status(); }, 800);
   $("#jmic").onclick = tapMic;
+  window.jarvisEndLive = function () { if (live) endLive(); };
   document.addEventListener("visibilitychange", function () { if (document.hidden && live) endLive(); });
   $("#jclose").onclick = function () { toTV({ state: "close" }); toast("Jarvis er lukket på TV'et"); };
   // Lukkes appen eller skifter du til en anden app, så luk også Jarvis på TV'et
