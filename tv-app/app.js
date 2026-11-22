@@ -223,7 +223,7 @@
   loadWeather(); setInterval(loadWeather, 15 * 60 * 1000);
 
   /* ---------- Automatisk opdatering: genindlæs når der er en ny version på GitHub ---------- */
-  var APP_VERSION = "37";
+  var APP_VERSION = "38";
   function checkVersion() {
     if (DEMO || location.protocol === "file:") return;
     var x = new XMLHttpRequest();
@@ -417,10 +417,15 @@
       for (var i = 0; i < c.children.length; i++) c.children[i].classList.toggle("sel", i === sel);
     }
     function show(d) {
+      if (d.state === "close") return close();
+      // Er der allerede forslag på skærmen, så lad "klar" ikke skjule dem
+      if (d.state === "ready" && items.length && !el.classList.contains("hidden")) return;
       openUI();
       el.className = "st-" + (d.state || "answer");
       busy = d.state === "thinking";
-      el.querySelector("#jv-pill").textContent = d.state === "thinking" ? "Jarvis tænker…" : "Jarvis";
+      busy = d.state === "thinking" || d.state === "listening";
+      el.querySelector("#jv-pill").textContent = { thinking: "Jarvis tænker…", listening: "Lytter…", ready: "Jarvis er klar" }[d.state] || "Jarvis";
+      if (d.state === "ready") d.text = "Tal til Jarvis på telefonen";
       el.querySelector("#jv-q").textContent = d.question ? "“" + d.question + "”" : "";
       el.querySelector("#jv-text").textContent = d.text || "";
       el.querySelector("#jv-head").textContent = d.heading || "";
@@ -436,8 +441,9 @@
       });
       renderCards();
       el.querySelector("#jv-hint").textContent = items.length ? "← → vælg · OK åbn · Tilbage luk" : "";
-      if (d.state === "thinking") autoHide(40);
-      else autoHide(items.length ? 120 : 15);
+      if (d.state === "ready" || d.state === "listening") autoHide(600);
+      else if (d.state === "thinking") autoHide(40);
+      else autoHide(items.length ? 180 : 60);
     }
     function key(code) {
       if (code === 10009 || code === 8 || code === 27) { close(); return true; }

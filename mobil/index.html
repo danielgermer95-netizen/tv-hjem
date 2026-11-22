@@ -186,7 +186,7 @@
 </style>
 </head>
 <body>
-  <header><h1>TV Hjem <small style="font-size:11px;opacity:.45;font-weight:500">v37</small></h1><span class="pill" id="status">● Klar</span></header>
+  <header><h1>TV Hjem <small style="font-size:11px;opacity:.45;font-weight:500">v38</small></h1><span class="pill" id="status">● Klar</span></header>
 
   <div class="tabs">
     <button data-tab="fjern" class="on">Fjernb.</button>
@@ -336,10 +336,13 @@ function post(body, headers) {
 // Faner
 document.querySelectorAll(".tabs button").forEach(function (b) {
   b.onclick = function () {
+    var wasJ = document.querySelector("#jarvis").classList.contains("on") && b.dataset.tab !== "jarvis";
+    if (b.dataset.tab === "jarvis" && document.querySelector("#jarvis").classList.contains("on")) return;
     document.querySelectorAll(".tabs button").forEach(function (x) { x.classList.toggle("on", x === b); });
     document.querySelectorAll(".panel").forEach(function (p) { p.classList.toggle("on", p.id === b.dataset.tab); });
     if (b.dataset.tab === "besked") resize();
     if (b.dataset.tab === "apps") fitTiles();
+    if (window.jarvisTab) { if (b.dataset.tab === "jarvis") jarvisTab(true); else if (wasJ) jarvisTab(false); }
   };
 });
 
@@ -639,7 +642,7 @@ var RC = (function () {
 
 // ---------- Automatisk opdatering: tjek om der er kommet en ny version ----------
 (function () {
-  var MINE = "37", last = 0;
+  var MINE = "38", last = 0;
   function check() {
     if (Date.now() - last < 60000) return; last = Date.now();
     fetch("version.txt?t=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.ok ? r.text() : ""; }).then(function (v) {
@@ -779,10 +782,11 @@ var RC = (function () {
   }
   function listen() {
     if (busy) return;
-    if (!SR) { setMic("", "Tale virker ikke i denne browser – brug ⌨️ Skriv i stedet"); return; }
+    if (!SR) { unlockSpeech(); return typeFallback("Tale virker ikke her"); }
     if (rec) { rec.stop(); return; }
-    if (window.speechSynthesis) speechSynthesis.cancel();
+    unlockSpeech();
     heard = ""; $("#jheard").textContent = "";
+    toTV({ state: "listening" });
     rec = new SR(); rec.lang = "da-DK"; rec.interimResults = true; rec.continuous = false;
     rec.onresult = function (e) {
       var t = ""; for (var i = 0; i < e.results.length; i++) t += e.results[i][0].transcript;
@@ -797,7 +801,22 @@ var RC = (function () {
       if (!t) { if ($("#jmic").classList.contains("listen")) setMic("", "Tryk og tal til Jarvis"); return; }
       run(t);
     };
-    try { rec.start(); setMic("listen", "Lytter…"); } catch (e) { rec = null; setMic("", "Kunne ikke starte mikrofonen"); }
+    try { rec.start(); setMic("listen", "Lytter…"); } catch (e) { rec = null; return typeFallback("Mikrofonen kunne ikke starte"); }
+    // Hører den intet, så giv op og brug tastaturets mikrofon i stedet
+    var mine = rec;
+    setTimeout(function () { if (rec === mine && !heard) { try { rec.abort ? rec.abort() : rec.stop(); } catch (e) {} rec = null; typeFallback("Jeg kunne ikke høre dig"); } }, 8000);
+  }
+  // iPhone taler kun højt, hvis det starter med et tryk – "lås op" med en tom sætning
+  var unlocked = false;
+  function unlockSpeech() {
+    if (!window.speechSynthesis) return;
+    speechSynthesis.cancel();
+    if (!unlocked) { var u = new SpeechSynthesisUtterance(" "); u.volume = 0; speechSynthesis.speak(u); unlocked = true; }
+  }
+  function typeFallback(why) {
+    setMic("", why + " – tryk 🎤 på tastaturet og tal");
+    $("#jarvis").classList.add("typing"); $("#jmode").textContent = "🎤 Tal i stedet";
+    setTimeout(function () { $("#jin").focus(); }, 50);
   }
   function run(t) {
     busy = true; setMic("think", "Tænker…"); say(t, "me");
@@ -805,6 +824,13 @@ var RC = (function () {
   }
   function done() { busy = false; setMic("", "Tryk og tal til Jarvis"); }
   $("#jmic").onclick = listen;
+  // Når Jarvis-fanen åbnes: skift TV'et til Hjem og vis Jarvis klar
+  window.jarvisTab = function (on) {
+    if (on) {
+      if (RC.configured() && RC.ready()) { RC.openApp("hjem"); setTimeout(function () { toTV({ state: "ready" }); }, 2500); }
+      else toTV({ state: "ready" });
+    } else toTV({ state: "close" });
+  };
   $("#jmode").onclick = function () {
     var on = $("#jarvis").classList.toggle("typing");
     this.textContent = on ? "🎤 Tal i stedet" : "⌨️ Skriv i stedet";
@@ -812,7 +838,7 @@ var RC = (function () {
 
   function send() {
     var v = $("#jin").value.trim(); if (!v || busy) return;
-    $("#jin").value = ""; run(v);
+    unlockSpeech(); $("#jin").value = ""; run(v);
   }
   $("#jsend").onclick = send;
   $("#jin").addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); send(); } });

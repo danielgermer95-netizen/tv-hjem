@@ -236,3 +236,4 @@ body {
 #jv.st-answer #jv-orb { width: 200px; height: 200px; }
 #jv.st-answer { padding-top: 30px; }
 #jv.st-answer #jv-text { font-size: 32px; }
+#jv.st-ready #jv-text, #jv.st-listening #jv-text { font-size: 30px; opacity: .75; font-weight: 500; }
