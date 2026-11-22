@@ -222,6 +222,21 @@
   }
   loadWeather(); setInterval(loadWeather, 15 * 60 * 1000);
 
+  /* ---------- Automatisk opdatering: genindlæs når der er en ny version på GitHub ---------- */
+  var APP_VERSION = "37";
+  function checkVersion() {
+    if (DEMO || location.protocol === "file:") return;
+    var x = new XMLHttpRequest();
+    x.open("GET", "https://danielgermer95-netizen.github.io/tv-hjem/tv-app/version.txt?t=" + Date.now());
+    x.onload = function () {
+      var v = (x.responseText || "").trim();
+      if (x.status === 200 && v && v !== APP_VERSION && !(typeof JV !== "undefined" && JV.open())) location.reload();
+    };
+    x.send();
+  }
+  setInterval(checkVersion, 10 * 60 * 1000);
+  document.addEventListener("visibilitychange", function () { if (!document.hidden) setTimeout(checkVersion, 2000); });
+
   /* ---------- Toast ---------- */
   var toastT;
   function toast(msg) { var t = $("toast"); t.textContent = msg; t.classList.remove("hidden"); clearTimeout(toastT); toastT = setTimeout(function () { t.classList.add("hidden"); }, 3500); }

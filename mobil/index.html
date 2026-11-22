@@ -186,7 +186,7 @@
 </style>
 </head>
 <body>
-  <header><h1>TV Hjem <small style="font-size:11px;opacity:.45;font-weight:500">v36</small></h1><span class="pill" id="status">● Klar</span></header>
+  <header><h1>TV Hjem <small style="font-size:11px;opacity:.45;font-weight:500">v37</small></h1><span class="pill" id="status">● Klar</span></header>
 
   <div class="tabs">
     <button data-tab="fjern" class="on">Fjernb.</button>
@@ -635,6 +635,21 @@ var RC = (function () {
     launch(id); return true;
   }
   return { key: key, launch: launch, appId: appId, openApp: openApp, ready: function () { return state === "on"; }, configured: function () { return !!get("tvip"); } };
+})();
+
+// ---------- Automatisk opdatering: tjek om der er kommet en ny version ----------
+(function () {
+  var MINE = "37", last = 0;
+  function check() {
+    if (Date.now() - last < 60000) return; last = Date.now();
+    fetch("version.txt?t=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.ok ? r.text() : ""; }).then(function (v) {
+      v = (v || "").trim();
+      if (v && v !== MINE) location.reload();
+    }).catch(function () {});
+  }
+  document.addEventListener("visibilitychange", function () { if (!document.hidden) check(); });
+  setInterval(check, 10 * 60 * 1000);
+  setTimeout(check, 3000);
 })();
 
 // ---------- Jarvis ----------
