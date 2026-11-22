@@ -250,7 +250,7 @@
   loadWeather(); setInterval(loadWeather, 15 * 60 * 1000);
 
   /* ---------- Automatisk opdatering: genindlæs når der er en ny version på GitHub ---------- */
-  var APP_VERSION = "43";
+  var APP_VERSION = "45";
   function checkVersion() {
     if (DEMO || location.protocol === "file:") return;
     var x = new XMLHttpRequest();
@@ -461,8 +461,24 @@
       var c = el.querySelector("#jv-cards");
       for (var i = 0; i < c.children.length; i++) c.children[i].classList.toggle("sel", i === sel);
     }
+    // Jarvis' stemme: hent mp3 fra Jarvis-serveren og afspil den i TV'ets højttalere
+    var audio = null;
+    function sayAloud(url, text) {
+      if (!url || !text) return;
+      try { if (audio) { audio.pause(); audio = null; } } catch (e) {}
+      var x = new XMLHttpRequest();
+      x.open("POST", url); x.responseType = "blob";
+      x.setRequestHeader("Content-Type", "application/json"); x.setRequestHeader("X-Jarvis-Key", C.kanal);
+      x.onload = function () {
+        if (x.status !== 200) return;
+        audio = new Audio(URL.createObjectURL(x.response));
+        var pr = audio.play(); if (pr && pr.catch) pr.catch(function () {});
+      };
+      x.send(JSON.stringify({ tts: text }));
+    }
     function show(d) {
-      if (d.state === "close") return close();
+      if (d.state === "close") { try { if (audio) audio.pause(); } catch (e) {} return close(); }
+      if (d.state === "answer" && d.tts) sayAloud(d.tts, d.text);
       // Er der allerede forslag på skærmen, så lad "klar" ikke skjule dem
       if (d.state === "ready" && items.length && !el.classList.contains("hidden")) return;
       openUI();
@@ -580,7 +596,8 @@
   });
 
   if (DEMO) showNote({ text: "Pizza i aften? 🍕", t: Date.now() });
-  if (/[?&]jv=/.test(location.search)) JV.show(/jv=think/.test(location.search) ? { state: "thinking", question: "Find en god film til date night" } :
+  if (/[?&]jv=tts/.test(location.search)) JV.show({ state: "answer", text: "God aften. Alt er klar.", tts: "https://jarvis.test/" });
+  else if (/[?&]jv=/.test(location.search)) JV.show(/jv=think/.test(location.search) ? { state: "thinking", question: "Find en god film til date night" } :
     { state: "answer", text: "Her er fem bud på en hyggelig date night – alle med god kemi og et strejf af humor.", heading: "Til date night",
       items: [{ title: "La La Land", year: 2016, service: "Netflix", why: "Musik, kærlighed og flotte billeder" },
               { title: "Crazy, Stupid, Love", year: 2011, service: "HBO Max", why: "Sjov og varm" },

@@ -7,6 +7,8 @@ export interface Env {
   ANTHROPIC_API_KEY: string; // sættes med: npx wrangler secret put ANTHROPIC_API_KEY
   JARVIS_KEY: string;        // samme kanal-nøgle som appen bruger
   TMDB_TOKEN?: string;       // valgfri: TMDB "API Read Access Token" til filmopslag
+  ELEVENLABS_API_KEY?: string; // valgfri: stemme fra ElevenLabs
+  ELEVENLABS_VOICE_ID?: string; // valgfri: hvilken stemme (standard: "Daniel", britisk mand)
 }
 
 const MODEL = "claude-opus-5-5";
@@ -89,8 +91,22 @@ export default {
       return json({ error: "Ikke tilladt" }, 401, origin);
     }
 
-    let body: { messages?: unknown[]; tools?: unknown[]; context?: string; tmdb?: string };
+    let body: { messages?: unknown[]; tools?: unknown[]; context?: string; tmdb?: string; tts?: string };
     try { body = await req.json(); } catch { return json({ error: "Ugyldig JSON" }, 400, origin); }
+    // Tale: lav Jarvis' svar om til lyd (mp3) med ElevenLabs
+    if (typeof body.tts === "string") {
+      if (!env.ELEVENLABS_API_KEY) return json({ error: "ElevenLabs-nøgle mangler på serveren" }, 501, origin);
+      const text = body.tts.slice(0, 600);
+      const voice = env.ELEVENLABS_VOICE_ID || "onwK4e9ZLuTAKqWW03F9";
+      const r = await fetch("https://api.elevenlabs.io/v1/text-to-speech/" + voice + "?output_format=mp3_44100_128", {
+        method: "POST",
+        headers: { "xi-api-key": env.ELEVENLABS_API_KEY, "Content-Type": "application/json", accept: "audio/mpeg" },
+        body: JSON.stringify({ text, model_id: "eleven_multilingual_v2", voice_settings: { stability: 0.55, similarity_boost: 0.8 } }),
+      });
+      if (!r.ok) return json({ error: "ElevenLabs svarede " + r.status }, 502, origin);
+      return new Response(r.body, { status: 200, headers: { "Content-Type": "audio/mpeg", ...cors(origin) } });
+    }
+
     // Filmopslag i TMDB (nøglen bliver her på serveren). Kun søgning og streamingtjenester.
     if (typeof body.tmdb === "string") {
       if (!env.TMDB_TOKEN) return json({ error: "TMDB-nøgle mangler på serveren" }, 501, origin);

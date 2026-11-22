@@ -186,7 +186,7 @@
 </style>
 </head>
 <body>
-  <header><h1>TV Hjem <small style="font-size:11px;opacity:.45;font-weight:500">v44</small></h1><span class="pill" id="status">● Klar</span></header>
+  <header><h1>TV Hjem <small style="font-size:11px;opacity:.45;font-weight:500">v45</small></h1><span class="pill" id="status">● Klar</span></header>
 
   <div class="tabs">
     <button data-tab="fjern" class="on">Fjernb.</button>
@@ -300,6 +300,7 @@
       <button class="jlink" id="jmode">⌨️ Skriv i stedet</button>
       <button class="jlink" id="jclose">✕ Luk på TV'et</button>
       <label><input type="checkbox" id="jspeak"> Læs svar højt</label>
+      <label><input type="checkbox" id="jtv"> Stemme fra TV'et</label>
       <details><summary>Indstillinger</summary>
         <input id="jurl" placeholder="Jarvis-server (…workers.dev)" autocomplete="off">
         <input id="jtmdb" placeholder="TMDB-nøgle (API Read Access Token)" autocomplete="off">
@@ -646,7 +647,7 @@ var RC = (function () {
 
 // ---------- Automatisk opdatering: tjek om der er kommet en ny version ----------
 (function () {
-  var MINE = "44", last = 0;
+  var MINE = "45", last = 0;
   function check() {
     if (Date.now() - last < 60000) return; last = Date.now();
     fetch("version.txt?t=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.ok ? r.text() : ""; }).then(function (v) {
@@ -741,6 +742,9 @@ var RC = (function () {
   $("#jtmdb").value = lsGet("tmdbKey") || "";
   $("#jtmdb").onchange = function () { lsSet("tmdbKey", this.value.trim()); };
   $("#jspeak").checked = lsGet("jarvisSpeak") !== "0"; // tale er standard
+  $("#jtv").checked = lsGet("jarvisTvVoice") !== "0"; // stemmen kommer fra TV'et som standard
+  $("#jtv").onchange = function () { lsSet("jarvisTvVoice", this.checked ? "1" : "0"); };
+  function tvVoice() { return $("#jtv").checked; }
   $("#jspeak").onchange = function () { lsSet("jarvisSpeak", this.checked ? "1" : "0"); };
 
   function say(text, cls) {
@@ -750,7 +754,13 @@ var RC = (function () {
   }
   var speaking = null;
   function speak(text) {
-    if (!$("#jspeak").checked || !window.speechSynthesis) return;
+    if (!$("#jspeak").checked) return;
+    if (tvVoice()) {
+      // TV'et taler: vent omtrent den tid, det tager, før vi lytter igen
+      speaking = new Promise(function (res) { setTimeout(res, 2500 + text.length * 75); });
+      return;
+    }
+    if (!window.speechSynthesis) return;
     var u = new SpeechSynthesisUtterance(text); u.lang = "da-DK"; speechSynthesis.cancel();
     speaking = new Promise(function (res) {
       u.onend = u.onerror = res;
@@ -832,6 +842,7 @@ var RC = (function () {
       }
       if (thinking) { thinking.remove(); say("Færdig.", "bot"); }
       var show = { state: "answer", text: (finalText || "Færdig.").slice(0, 400) };
+      if (tvVoice()) show.tts = (lsGet("jarvisUrl") || "").trim();
       if (pendingShow) { show.heading = pendingShow.heading; show.items = pendingShow.items; }
       toTV(show);
     } catch (e) {
