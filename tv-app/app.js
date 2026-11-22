@@ -5,6 +5,19 @@
   var HAS_TIZEN = typeof window.tizen !== "undefined";
   var DEMO = /[?&]demo/.test(location.search);
 
+  /* Ældre installationer har en anden index.html – byg den nye beskedkolonne, hvis den mangler */
+  (function upgradeDom() {
+    if (document.getElementById("notes")) return;
+    var old = document.getElementById("note"); if (old) old.parentNode.removeChild(old);
+    var sec = document.createElement("section");
+    sec.id = "notes"; sec.className = "glass";
+    sec.innerHTML = '<div class="notes-head">Beskeder</div><div id="note-body">' +
+      '<div id="note-empty">Ingen beskeder<br>Tegn eller skriv en fra mobilen ✍️</div>' +
+      '<img id="note-img" src="" alt=""><div id="note-text"></div></div><div id="note-meta"></div>';
+    var dock = document.getElementById("dock");
+    dock.parentNode.insertBefore(sec, dock);
+  })();
+
   function store(k, v) { try { if (v === undefined) return JSON.parse(localStorage.getItem(k)); localStorage.setItem(k, JSON.stringify(v)); } catch (e) { return null; } }
 
   /* ---------- Skalering til skærmen ---------- */
