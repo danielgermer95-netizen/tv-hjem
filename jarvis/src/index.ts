@@ -6,6 +6,7 @@ import Anthropic from "@anthropic-ai/sdk";
 export interface Env {
   ANTHROPIC_API_KEY: string; // sættes med: npx wrangler secret put ANTHROPIC_API_KEY
   JARVIS_KEY: string;        // samme kanal-nøgle som appen bruger
+  TMDB_TOKEN?: string;       // valgfri: TMDB "API Read Access Token" til filmopslag
 }
 
 const MODEL = "claude-opus-5-5";
@@ -88,8 +89,17 @@ export default {
       return json({ error: "Ikke tilladt" }, 401, origin);
     }
 
-    let body: { messages?: unknown[]; tools?: unknown[]; context?: string };
+    let body: { messages?: unknown[]; tools?: unknown[]; context?: string; tmdb?: string };
     try { body = await req.json(); } catch { return json({ error: "Ugyldig JSON" }, 400, origin); }
+    // Filmopslag i TMDB (nøglen bliver her på serveren). Kun søgning og streamingtjenester.
+    if (typeof body.tmdb === "string") {
+      if (!env.TMDB_TOKEN) return json({ error: "TMDB-nøgle mangler på serveren" }, 501, origin);
+      const path = body.tmdb;
+      if (!/^\/(search\/multi\?[^#]*|(movie|tv)\/\d+\/watch\/providers)$/.test(path)) return json({ error: "Ugyldigt opslag" }, 400, origin);
+      const r = await fetch("https://api.themoviedb.org/3" + path, { headers: { Authorization: "Bearer " + env.TMDB_TOKEN, accept: "application/json" } });
+      return new Response(await r.text(), { status: r.status, headers: { "Content-Type": "application/json", ...cors(origin) } });
+    }
+
     const messages = body.messages;
     if (!Array.isArray(messages) || messages.length === 0 || messages.length > 60) {
       return json({ error: "Ugyldige beskeder" }, 400, origin);
