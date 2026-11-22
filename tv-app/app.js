@@ -213,7 +213,7 @@
       if (a.hdmi) return;
       if (!findApp(a)) return tiles[i].classList.add("missing");
       // Brug appens rigtige ikon fra TV'et
-      if (a.ikon === false || a.key === "youtube") return; // YouTube giver et standard-Tizen-ikon
+      return; // Ikoner hentes nu fra App Store (storeIcons), som giver de officielle logoer
       var info = findInfo(a), src = info && info.iconPath;
       if (!src) return;
       if (src.indexOf("://") < 0) src = "file://" + src;
@@ -248,6 +248,46 @@
     } catch (e) {}
   }
   buildDock();
+  /* ---------- Officielle app-ikoner fra App Store (hentes og gemmes lokalt) ---------- */
+  var STORE_Q = {
+    drtv: ["DR TV", /^dr\s?tv/i], tv2play: ["TV 2 Play", /tv\s?2\s?play/i], netflix: ["Netflix", /^netflix/i],
+    hbomax: ["HBO Max", /hbo\s?max|^max\b/i], prime: ["Prime Video", /prime\s?video/i], disney: ["Disney+", /disney/i],
+    viaplay: ["Viaplay", /viaplay/i], skyshow: ["SkyShowtime", /sky\s?show\s?time/i], appletv: ["Apple TV", /^(apple\s)?tv$|apple\s?tv/i],
+    youtube: ["YouTube", /^youtube[:\s]*$|^youtube: watch/i], spotify: ["Spotify", /spotify/i], playstation: ["PlayStation App", /playstation/i]
+  };
+  function storeIcons(onIcon) {
+    var cache = {}; try { cache = JSON.parse(localStorage.getItem("icons_v1")) || {}; } catch (e) {}
+    var fresh = cache._t && Date.now() - cache._t < 7 * 864e5;
+    Object.keys(STORE_Q).forEach(function (k) { if (cache[k]) onIcon(k, cache[k]); });
+    if (fresh) return;
+    cache._t = Date.now();
+    Object.keys(STORE_Q).forEach(function (k, i) {
+      var cb = "__ic" + i + "_" + Date.now(), s = document.createElement("script");
+      window[cb] = function (res) {
+        delete window[cb]; s.parentNode && s.parentNode.removeChild(s);
+        var list = (res && res.results) || [], hit = null;
+        for (var j = 0; j < list.length; j++) if (STORE_Q[k][1].test(list[j].trackName || "")) { hit = list[j]; break; }
+        if (!hit || !hit.artworkUrl512) return;
+        cache[k] = hit.artworkUrl512.replace(/\/\d+x\d+bb\./, "/256x256bb.");
+        try { localStorage.setItem("icons_v1", JSON.stringify(cache)); } catch (e) {}
+        onIcon(k, cache[k]);
+      };
+      s.src = "https://itunes.apple.com/search?entity=software&country=dk&limit=8&term=" + encodeURIComponent(STORE_Q[k][0]) + "&callback=" + cb;
+      s.onerror = function () { delete window[cb]; };
+      document.head.appendChild(s);
+    });
+  }
+  storeIcons(function (k, url) {
+    var i = -1; C.apps.forEach(function (a, n) { if (a.key === k) i = n; });
+    var tile = $("dock").children[i]; if (!tile || tile.classList.contains("real")) return;
+    var a = C.apps[i], img = new Image();
+    img.onload = function () {
+      if (tile.classList.contains("real")) return;
+      tile.classList.add("real");
+      tile.innerHTML = '<img src="' + url + '" alt=""><span class="label">' + a.navn + '</span>';
+    };
+    img.src = url;
+  });
 
   /* ---------- TV'ets egen fjernbetjenings-API (til HDMI-skift) ---------- */
   function sendKey(key, fejltekst) {
