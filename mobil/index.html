@@ -186,7 +186,7 @@
 </style>
 </head>
 <body>
-  <header><h1>TV Hjem <small style="font-size:11px;opacity:.45;font-weight:500">v38</small></h1><span class="pill" id="status">● Klar</span></header>
+  <header><h1>TV Hjem <small style="font-size:11px;opacity:.45;font-weight:500">v39</small></h1><span class="pill" id="status">● Klar</span></header>
 
   <div class="tabs">
     <button data-tab="fjern" class="on">Fjernb.</button>
@@ -298,6 +298,7 @@
     </div>
     <div class="jopts">
       <button class="jlink" id="jmode">⌨️ Skriv i stedet</button>
+      <button class="jlink" id="jclose">✕ Luk på TV'et</button>
       <label><input type="checkbox" id="jspeak"> Læs svar højt</label>
       <details><summary>Server</summary><input id="jurl" placeholder="https://tv-hjem-jarvis.xxx.workers.dev" autocomplete="off"></details>
     </div>
@@ -642,7 +643,7 @@ var RC = (function () {
 
 // ---------- Automatisk opdatering: tjek om der er kommet en ny version ----------
 (function () {
-  var MINE = "38", last = 0;
+  var MINE = "39", last = 0;
   function check() {
     if (Date.now() - last < 60000) return; last = Date.now();
     fetch("version.txt?t=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.ok ? r.text() : ""; }).then(function (v) {
@@ -824,6 +825,11 @@ var RC = (function () {
   }
   function done() { busy = false; setMic("", "Tryk og tal til Jarvis"); }
   $("#jmic").onclick = listen;
+  $("#jclose").onclick = function () { toTV({ state: "close" }); toast("Jarvis er lukket på TV'et"); };
+  // Lukkes appen eller skifter du til en anden app, så luk også Jarvis på TV'et
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden && document.querySelector("#jarvis").classList.contains("on")) toTV({ state: "close" });
+  });
   // Når Jarvis-fanen åbnes: skift TV'et til Hjem og vis Jarvis klar
   window.jarvisTab = function (on) {
     if (on) {

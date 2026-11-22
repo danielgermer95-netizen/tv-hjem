@@ -223,7 +223,7 @@
   loadWeather(); setInterval(loadWeather, 15 * 60 * 1000);
 
   /* ---------- Automatisk opdatering: genindlæs når der er en ny version på GitHub ---------- */
-  var APP_VERSION = "38";
+  var APP_VERSION = "39";
   function checkVersion() {
     if (DEMO || location.protocol === "file:") return;
     var x = new XMLHttpRequest();
@@ -440,14 +440,15 @@
         poster(it.title, +it.year || 0, img);
       });
       renderCards();
-      el.querySelector("#jv-hint").textContent = items.length ? "← → vælg · OK åbn · Tilbage luk" : "";
-      if (d.state === "ready" || d.state === "listening") autoHide(600);
+      el.querySelector("#jv-hint").textContent = items.length ? "← → vælg · OK åbn · Tilbage luk" : "Tryk på en vilkårlig knap for at lukke";
+      if (d.state === "ready" || d.state === "listening") autoHide(180);
       else if (d.state === "thinking") autoHide(40);
       else autoHide(items.length ? 180 : 60);
     }
     function key(code) {
       if (code === 10009 || code === 8 || code === 27) { close(); return true; }
-      if (!items.length) return false;
+      // Uden forslag lukker enhver tast Jarvis igen
+      if (!items.length) { close(); return true; }
       if (code === 37) { sel = Math.max(0, sel - 1); renderCards(); return true; }
       if (code === 39) { sel = Math.min(Math.min(items.length, 6) - 1, sel + 1); renderCards(); return true; }
       if (code === 13) {
