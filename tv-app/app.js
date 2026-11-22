@@ -196,7 +196,7 @@
   function tileHtml(a) {
     var inner = {
       drtv: "DR<small>TV</small>", tv2play: "TV 2<small>PLAY</small>", netflix: "N", hbomax: "HBO<small>max</small>",
-      prime: "prime<small>video</small>", disney: "<span>Disney<b>+</b></span>", viaplay: "viaplay", skyshow: "Sky<small>Showtime</small>",
+      prime: "prime<i></i><small>video</small>", disney: "<span>Disney<b>+</b></span>", viaplay: "viaplay", skyshow: "Sky<small>Showtime</small>",
       appletv: "tv", youtube: "<i></i>", spotify: "<i></i>", playstation: "PS5<small>HDMI " + C.playstationHdmi + "</small>"
     }[a.key] || a.navn;
     return '<div class="tile t-' + a.key + '" data-key="' + a.key + '">' + inner + '<span class="label">' + a.navn + '</span></div>';

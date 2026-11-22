@@ -64,8 +64,10 @@
 .t-netflix { background: #000; color: #e50914; font-size: 78px; font-family: Georgia, serif; }
 .t-hbomax  { background: linear-gradient(135deg,#002be7,#5b1bd6); color:#fff; font-size: 32px; letter-spacing: 1px; }
 .t-hbomax small { display:block; font-size: 30px; font-weight: 300; }
-.t-prime   { background: linear-gradient(135deg,#1a98ff,#0f5ec7); color:#fff; font-size: 28px; }
-.t-prime small { display:block; font-size: 22px; font-weight: 500; }
+.t-prime   { background: linear-gradient(160deg,#1b2a3c,#00050d); color:#fff; font-size: 30px; font-weight: 700; letter-spacing: -.5px; }
+.t-prime small { display:block; font-size: 22px; font-weight: 500; margin-top: 10px; letter-spacing: .5px; }
+.t-prime i { display:block; width: 58px; height: 12px; margin: 2px auto -6px; border-bottom: 4px solid #1a98ff; border-radius: 0 0 50% 50%; position: relative; }
+.t-prime i::after { content: ""; position: absolute; right: -3px; bottom: -3px; border-left: 8px solid #1a98ff; border-top: 5px solid transparent; border-bottom: 5px solid transparent; transform: rotate(-30deg); }
 .t-disney  { background: linear-gradient(135deg,#0b1b5c,#0e5b7a); color:#fff; font-size: 26px; font-family: Georgia, serif; font-style: italic; }
 .t-disney b { color: #7fe1ff; font-style: normal; }
 .t-viaplay { background: linear-gradient(135deg,#2b0d4d,#7a1fbf); color:#fff; font-size: 27px; }
@@ -132,6 +134,8 @@
   .setup .btns button { flex:1; padding:12px; border-radius:12px; border:0; font-weight:700; font-size:15px; font-family:inherit; color:#fff; background:rgba(255,255,255,.14); }
   .setup .btns button.pri { background:linear-gradient(135deg,#8b7cff,#5b8cff); }
   .setup ol { padding-left:18px; }
+  #appsDbg summary { cursor:pointer; color:#fff; font-weight:600; }
+  #appsList { margin-top:8px; font-size:12px; line-height:1.6; user-select:text; -webkit-user-select:text; word-break:break-all; }
   .photo { display:none; position:relative; flex:1; min-height:0; margin-bottom:12px; border-radius:22px; overflow:hidden; border:1px solid var(--line); background:#000; }
   .photo.on { display:block; }
   .photo img { width:100%; height:100%; object-fit:contain; display:block; }
@@ -169,6 +173,7 @@
       <input id="ip" inputmode="decimal" placeholder="TV'ets IP, fx 192.168.1.50" autocomplete="off">
       <input id="hdmi" inputmode="numeric" placeholder="PlayStation sidder i HDMI nr. (1-4)" autocomplete="off">
       <div class="btns"><button id="trust">Godkend TV</button><button class="pri" id="connect">Forbind</button></div>
+      <details id="appsDbg"><summary>TV'ets apps (til fejlfinding)</summary><div id="appsList">Forbind først…</div></details>
     </div>
 
     <div class="r4">
@@ -390,7 +395,7 @@ $("#sendTxt").onclick = function () {
 // ---------- Apps ----------
 var APPS = [
   ["drtv", "DR TV", "DR<small>TV</small>"], ["tv2play", "TV 2 Play", "TV 2<small>PLAY</small>"], ["netflix", "Netflix", "N"],
-  ["hbomax", "HBO Max", "HBO<small>max</small>"], ["prime", "Prime Video", "prime<small>video</small>"],
+  ["hbomax", "HBO Max", "HBO<small>max</small>"], ["prime", "Prime Video", "prime<i></i><small>video</small>"],
   ["disney", "Disney+", "<span>Disney<b>+</b></span>"], ["viaplay", "Viaplay", "viaplay"],
   ["skyshow", "SkyShowtime", "Sky<small>Showtime</small>"], ["appletv", "Apple TV", "tv"],
   ["youtube", "YouTube", "<i></i>"], ["spotify", "Spotify", "<i></i>"], ["playstation", "PlayStation", "PS5<small>HDMI</small>"]
@@ -455,6 +460,7 @@ var RC = (function () {
         while (queue.length) ws.send(queue.shift());
       } else if (m.event === "ed.installedApp.get" && m.data && m.data.data) {
         apps = m.data.data;
+        $("#appsList").innerHTML = apps.map(function (a) { return "<b>" + a.name + "</b> – " + a.appId; }).join("<br>") || "Ingen apps modtaget";
       } else if (m.event === "ms.channel.unauthorized") {
         ui("off", "TV'et afviste forbindelsen"); toast("Tillad forbindelsen på TV'et og prøv igen");
       }

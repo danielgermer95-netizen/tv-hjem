@@ -163,8 +163,10 @@ body {
 .t-netflix { background: #000; color: #e50914; font-size: 78px; font-family: Georgia, serif; }
 .t-hbomax  { background: linear-gradient(135deg,#002be7,#5b1bd6); color:#fff; font-size: 32px; letter-spacing: 1px; }
 .t-hbomax small { display:block; font-size: 30px; font-weight: 300; }
-.t-prime   { background: linear-gradient(135deg,#1a98ff,#0f5ec7); color:#fff; font-size: 28px; }
-.t-prime small { display:block; font-size: 22px; font-weight: 500; }
+.t-prime   { background: linear-gradient(160deg,#1b2a3c,#00050d); color:#fff; font-size: 30px; font-weight: 700; letter-spacing: -.5px; }
+.t-prime small { display:block; font-size: 22px; font-weight: 500; margin-top: 10px; letter-spacing: .5px; }
+.t-prime i { display:block; width: 58px; height: 12px; margin: 2px auto -6px; border-bottom: 4px solid #1a98ff; border-radius: 0 0 50% 50%; position: relative; }
+.t-prime i::after { content: ""; position: absolute; right: -3px; bottom: -3px; border-left: 8px solid #1a98ff; border-top: 5px solid transparent; border-bottom: 5px solid transparent; transform: rotate(-30deg); }
 .t-disney  { background: linear-gradient(135deg,#0b1b5c,#0e5b7a); color:#fff; font-size: 26px; font-family: Georgia, serif; font-style: italic; }
 .t-disney b { color: #7fe1ff; font-style: normal; }
 .t-viaplay { background: linear-gradient(135deg,#2b0d4d,#7a1fbf); color:#fff; font-size: 27px; }
