@@ -328,6 +328,7 @@
 
   function handle(m) {
     if (m.event !== "message") return;
+    if (m.title === "apps") return; // Hjems egen app-liste til mobilen – ikke en besked
     if (m.title === "cmd") {
       // Kun nye kommandoer, mens Hjem er synlig – ellers udføres gamle tryk, når Hjem kommer frem
       if (document.hidden || !m.time || Date.now() / 1000 - m.time > 15) return;
