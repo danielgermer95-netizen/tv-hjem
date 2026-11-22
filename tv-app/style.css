@@ -50,70 +50,72 @@ body {
 }
 
 /* ---------- Top ---------- */
-#top {
-  position: absolute; left: 96px; right: 96px; top: 64px;
-  display: flex; justify-content: space-between; align-items: flex-start;
-}
+#top { position: absolute; left: 96px; top: 52px; }
 #date { font-size: 30px; font-weight: 500; opacity: .9; letter-spacing: .5px; text-shadow: 0 2px 12px rgba(0,0,0,.25); }
 #clock {
-  font-size: 150px; font-weight: 200; line-height: 1; letter-spacing: -6px;
+  font-size: 132px; font-weight: 200; line-height: 1; letter-spacing: -5px;
   margin-top: 4px; text-shadow: 0 6px 40px rgba(0,0,0,.25);
 }
 
-#note {
-  width: 380px; padding: 20px; text-align: center;
-  animation: pop .6s cubic-bezier(.2,1.4,.4,1);
+/* ---------- Beskeder (fast kolonne til højre) ---------- */
+#notes {
+  position: absolute; left: 1328px; right: 96px; top: 250px; height: 590px;
+  display: flex; flex-direction: column; padding: 30px 32px;
 }
-#note img { width: 100%; max-height: 240px; object-fit: contain; display: block; }
-#note img[src=""] { display: none; }
-#note-text { font-size: 34px; font-weight: 600; line-height: 1.25; }
+.notes-head { font-size: 16px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; opacity: .55; }
+#note-body { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; min-height: 0; overflow: hidden; }
+#note-body.pop { animation: pop .6s cubic-bezier(.2,1.4,.4,1); }
+#note-img { max-width: 100%; max-height: 360px; object-fit: contain; display: block; }
+#note-img[src=""] { display: none; }
+#note-text { font-size: 38px; font-weight: 600; line-height: 1.25; margin-top: 10px; overflow-wrap: break-word; max-width: 100%; }
 #note-text:empty { display: none; }
-#note-meta { margin-top: 10px; font-size: 18px; opacity: .6; }
-@keyframes pop { from { transform: scale(.6); opacity: 0; } }
+#note-meta { font-size: 18px; opacity: .6; text-align: center; }
+#note-empty { font-size: 22px; opacity: .45; line-height: 1.5; }
+@keyframes pop { from { transform: scale(.7); opacity: 0; } }
 
 /* ---------- Vejr ---------- */
 #weather {
-  position: absolute; left: 96px; right: 96px; top: 280px; height: 560px;
-  display: flex; padding: 40px 44px; gap: 48px;
+  position: absolute; left: 96px; width: 1204px; top: 250px; height: 590px;
+  display: flex; padding: 34px 40px; gap: 40px;
 }
-#now { width: 430px; display: flex; flex-direction: column; }
+#now { width: 330px; display: flex; flex-direction: column; flex: none; }
 .now-place { display: flex; justify-content: space-between; align-items: baseline; }
-#city { font-size: 34px; font-weight: 600; }
-#updated { font-size: 18px; opacity: .55; }
-.now-main { display: flex; align-items: center; gap: 18px; margin-top: 14px; }
-#now-icon svg { width: 140px; height: 140px; }
-#now-temp { font-size: 150px; font-weight: 200; letter-spacing: -6px; line-height: 1; }
-#now-desc { font-size: 34px; font-weight: 500; margin-top: 8px; }
+#city { font-size: 32px; font-weight: 600; }
+#updated { font-size: 16px; opacity: .55; }
+.now-main { display: flex; align-items: center; gap: 14px; margin-top: 14px; }
+#now-icon svg { width: 110px; height: 110px; }
+#now-temp { font-size: 124px; font-weight: 200; letter-spacing: -5px; line-height: 1; }
+#now-desc { font-size: 28px; font-weight: 500; margin-top: 10px; }
 #now-stats {
-  margin-top: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 14px 24px;
-  font-size: 22px;
+  margin-top: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 14px 20px;
+  font-size: 21px;
 }
 #now-stats div { display: flex; flex-direction: column; }
-#now-stats b { font-size: 16px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; opacity: .55; margin-bottom: 2px; }
+#now-stats b { font-size: 15px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; opacity: .55; margin-bottom: 2px; }
 
-#right { flex: 1; display: flex; flex-direction: column; gap: 26px; min-width: 0; }
+#right { flex: 1; display: flex; flex-direction: column; gap: 22px; min-width: 0; }
 
 #hourly {
   display: flex; justify-content: space-between;
-  padding-bottom: 22px; border-bottom: 1px solid rgba(255,255,255,.14);
+  padding-bottom: 18px; border-bottom: 1px solid rgba(255,255,255,.14);
 }
-.hr { width: 76px; text-align: center; font-size: 20px; }
+.hr { width: 80px; text-align: center; font-size: 19px; }
 .hr .t { opacity: .7; }
-.hr svg { width: 46px; height: 46px; margin: 8px auto 4px; display: block; }
-.hr .v { font-size: 26px; font-weight: 600; }
-.hr .p { font-size: 16px; color: #bfe6ff; font-weight: 600; height: 20px; margin-top: 2px; }
+.hr svg { width: 42px; height: 42px; margin: 6px auto 2px; display: block; }
+.hr .v { font-size: 24px; font-weight: 600; }
+.hr .p { font-size: 15px; color: #bfe6ff; font-weight: 600; height: 18px; margin-top: 2px; }
 
-#daily { display: flex; flex-direction: column; gap: 3px; flex: 1; justify-content: space-between; }
+#daily { display: flex; flex-direction: column; flex: 1; justify-content: space-between; }
 .day {
-  display: grid; grid-template-columns: 110px 46px 86px 64px 1fr 64px 120px;
-  align-items: center; font-size: 22px; height: 30px;
+  display: grid; grid-template-columns: 96px 40px 62px 52px 1fr 52px 84px;
+  align-items: center; font-size: 21px; height: 28px;
 }
 .day .n { font-weight: 600; }
-.day svg { width: 30px; height: 30px; }
-.day .p { color: #bfe6ff; font-weight: 600; font-size: 18px; }
-.day .lo { opacity: .6; text-align: right; padding-right: 14px; }
-.day .hi { padding-left: 14px; font-weight: 600; }
-.day .w { font-size: 17px; opacity: .6; text-align: right; }
+.day svg { width: 28px; height: 28px; }
+.day .p { color: #bfe6ff; font-weight: 600; font-size: 17px; }
+.day .lo { opacity: .6; text-align: right; padding-right: 12px; }
+.day .hi { padding-left: 12px; font-weight: 600; }
+.day .w { font-size: 16px; opacity: .6; text-align: right; }
 .bar { position: relative; height: 8px; border-radius: 4px; background: rgba(255,255,255,.12); }
 .bar span {
   position: absolute; top: 0; bottom: 0; border-radius: 4px;
@@ -191,3 +193,7 @@ body {
 }
 .hidden { display: none !important; }
 
+
+/* Rigtige app-ikoner hentet fra TV'et */
+.tile.real { background: #111; padding: 0; }
+.tile.real img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: inherit; }

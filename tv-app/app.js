@@ -125,12 +125,12 @@
       "<div><b>Regn i dag</b>" + d.daily.precipitation_sum[0].toFixed(1) + " mm</div>" +
       "<div><b>Sol</b>" + hhmm(d.daily.sunrise[0]) + " – " + hhmm(d.daily.sunset[0]) + "</div>";
 
-    // Time for time: næste 24 timer, hver 2. time
+    // Time for time: næste 24 timer, hver 3. time
     var nowKey = d.current.time.slice(0, 13), start = 0;
     for (var i = 0; i < d.hourly.time.length; i++) if (d.hourly.time[i].slice(0, 13) === nowKey) { start = i; break; }
     var h = "";
-    for (var k = 0; k < 12; k++) {
-      var j = start + k * 2; if (j >= d.hourly.time.length) break;
+    for (var k = 0; k < 8; k++) {
+      var j = start + k * 3; if (j >= d.hourly.time.length) break;
       var pp = d.hourly.precipitation_probability[j];
       h += '<div class="hr"><div class="t">' + (k === 0 ? "Nu" : d.hourly.time[j].slice(11, 13)) + '</div>' +
         icon(d.hourly.weather_code[j], !!d.hourly.is_day[j]) +
@@ -153,7 +153,7 @@
         '<span class="lo">' + Math.round(mn) + '°</span>' +
         '<div class="bar"><span style="left:' + l + '%;width:' + w + '%"></span></div>' +
         '<span class="hi">' + Math.round(mx) + '°</span>' +
-        '<span class="w">' + (mm >= 0.5 ? mm.toFixed(1) + " mm · " : "") + Math.round(d.daily.wind_speed_10m_max[n]) + " m/s</span></div>";
+        '<span class="w">' + (mm >= 0.5 ? mm.toFixed(1) + " mm" : Math.round(d.daily.wind_speed_10m_max[n]) + " m/s") + '</span></div>';
     }
     $("daily").innerHTML = out;
     theme(!!c.is_day, c.weather_code, now.getHours());
@@ -175,10 +175,11 @@
 
   /* ---------- Apps på TV'et ---------- */
   var installed = [];
-  function findApp(a) {
-    for (var i = 0; i < installed.length; i++) if (a.match && a.match.test(installed[i].name)) return installed[i].id;
-    return a.id;
+  function findInfo(a) {
+    for (var i = 0; i < installed.length; i++) if (a.match && a.match.test(installed[i].name)) return installed[i];
+    return null;
   }
+  function findApp(a) { var f = findInfo(a); return f ? f.id : a.id; }
   function tileHtml(a) {
     var inner = {
       drtv: "DR<small>TV</small>", tv2play: "TV 2<small>PLAY</small>", netflix: "N", hbomax: "HBO<small>max</small>",
@@ -195,7 +196,20 @@
   function markMissing() {
     if (!HAS_TIZEN || !installed.length) return;
     var tiles = $("dock").children;
-    C.apps.forEach(function (a, i) { if (!a.hdmi && !findApp(a)) tiles[i].classList.add("missing"); });
+    C.apps.forEach(function (a, i) {
+      if (a.hdmi) return;
+      if (!findApp(a)) return tiles[i].classList.add("missing");
+      // Brug appens rigtige ikon fra TV'et
+      var info = findInfo(a), src = info && info.iconPath;
+      if (!src) return;
+      if (src.indexOf("://") < 0) src = "file://" + src;
+      var img = new Image();
+      img.onload = function () {
+        tiles[i].classList.add("real");
+        tiles[i].innerHTML = '<img src="' + src + '" alt=""><span class="label">' + a.navn + '</span>';
+      };
+      img.src = src;
+    });
   }
   function setFocus(i) {
     var tiles = $("dock").children, n = tiles.length;
@@ -251,7 +265,7 @@
       case 39: setFocus(focus + 1); break;
       case 13: launch(C.apps[focus].key); break;
       case 10009: // Tilbage: skjul beskeden
-        $("note").classList.add("hidden"); store("note", null); break;
+        clearNote(); break;
       default: return;
     }
     e.preventDefault();
@@ -259,12 +273,18 @@
 
   /* ---------- Beskeder fra mobilen (ntfy.sh) ---------- */
   function showNote(n) {
-    if (!n) return;
+    if (!n) return clearNote();
+    $("note-empty").style.display = "none";
     $("note-img").src = n.img || "";
     $("note-text").textContent = n.text || "";
     var t = new Date(n.t);
     $("note-meta").textContent = "Fra mobilen · " + pad(t.getHours()) + ":" + pad(t.getMinutes());
-    var el = $("note"); el.classList.add("hidden"); void el.offsetWidth; el.classList.remove("hidden");
+    var el = $("note-body"); el.classList.remove("pop"); void el.offsetWidth; el.classList.add("pop");
+  }
+  function clearNote() {
+    store("note", null);
+    $("note-img").src = ""; $("note-text").textContent = ""; $("note-meta").textContent = "";
+    $("note-empty").style.display = "";
   }
   showNote(store("note"));
 
@@ -274,7 +294,7 @@
       var cmd = (m.message || "").split(":");
       if (cmd[0] === "launch") launch(cmd[1]);
       else if (cmd[0] === "key") sendKey(cmd[1]);
-      else if (cmd[0] === "clear") { $("note").classList.add("hidden"); store("note", null); }
+      else if (cmd[0] === "clear") clearNote();
       return;
     }
     if (m.attachment && m.attachment.url) {
