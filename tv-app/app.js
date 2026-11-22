@@ -207,7 +207,7 @@
     var a = C.apps.filter(function (x) { return x.key === key; })[0];
     if (!a) return;
     if (a.hdmi) return sendKey("KEY_HDMI" + C.playstationHdmi, "Tænd PlayStation – eller tryk PS-knappen på controlleren");
-    if (!HAS_TIZEN) return toast("Åbner " + a.navn + " (kun på TV'et)");
+    if (!HAS_TIZEN) return toast("Åbn " + a.navn + " fra mobilen (Apps-fanen)");
     var id = findApp(a);
     if (!id) return toast(a.navn + " er ikke installeret");
     try {

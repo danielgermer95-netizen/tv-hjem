@@ -7,7 +7,12 @@ window.TV_CONFIG = {
 
   // Hemmeligt "kanal-navn" som mobilen og TV'et deler (ntfy.sh).
   // Skal være det samme i mobil/index.html. Hold det for dig selv.
-  kanal: "INDSAET-DIN-NOEGLE-HER",
+  // Nøglen kan også gives i adressen (#k=...), fx når siden åbnes i TV'ets browser.
+  kanal: (function () {
+    var m = location.hash.match(/k=([\w-]+)/), k = null;
+    try { if (m) localStorage.setItem("kanal", m[1]); k = localStorage.getItem("kanal"); } catch (e) { k = m && m[1]; }
+    return k || "INDSAET-DIN-NOEGLE-HER";
+  })(),
 
   // Hvilket HDMI-indgangsnummer sidder PlayStation i? (1-4)
   playstationHdmi: 1,
