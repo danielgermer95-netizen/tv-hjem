@@ -158,7 +158,7 @@
 </style>
 </head>
 <body>
-  <header><h1>TV Hjem <small style="font-size:11px;opacity:.45;font-weight:500">v28</small></h1><span class="pill" id="status">● Klar</span></header>
+  <header><h1>TV Hjem <small style="font-size:11px;opacity:.45;font-weight:500">v29</small></h1><span class="pill" id="status">● Klar</span></header>
 
   <div class="tabs">
     <button data-tab="fjern" class="on">Fjernb.</button>
@@ -522,6 +522,9 @@ var RC = (function () {
   }
   function launch(id) {
     raw({ method: "ms.channel.emit", params: { event: "ed.apps.launch", to: "host", data: { appId: id, action_type: "DEEP_LINK" } } });
+    // Reserve for nyere TV'er: TV'ets egen app-start-adresse (ét kald pr. tryk)
+    var ip = get("tvip");
+    if (ip && window.fetch) fetch("https://" + ip + ":8002/api/v2/applications/" + encodeURIComponent(id), { method: "POST", mode: "no-cors" }).catch(function () {});
   }
   function appId(k) {
     for (var i = 0; i < apps.length; i++) if (MATCH[k] && MATCH[k].test(apps[i].name)) return apps[i].appId;
