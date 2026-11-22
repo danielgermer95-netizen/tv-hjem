@@ -169,28 +169,55 @@
       if (meh.length) return ["meh", "Måske", meh[0]];
       return ["good", "Godt", "Fint MC-vejr"];
     }
-    // I dag: tidslinje for de næste 15 timer + bedste tørre vindue i dagslys
-    var tl = "", lbl = "", best = null, run = null;
+    // Time for time: samme regler som dagsvurderingen (kulde, glat, regn, vind) + mørke
+    function sunH(ds) {
+      var di = d.daily.time.indexOf(ds);
+      return di < 0 ? [8, 16] : [+d.daily.sunrise[di].slice(11, 13), +d.daily.sunset[di].slice(11, 13)];
+    }
+    function rateHour(j) {
+      var ds = d.hourly.time[j].slice(0, 10), hh = +d.hourly.time[j].slice(11, 13), sun = sunH(ds);
+      if (hh < sun[0] || hh >= sun[1]) return "dark";
+      var tp = d.hourly.temperature_2m[j], p = d.hourly.precipitation_probability[j] || 0;
+      var g = d.hourly.wind_gusts_10m ? d.hourly.wind_gusts_10m[j] || 0 : 0;
+      if (tp < MC.koldNej || p >= 50 || g >= MC.vindNej) return "bad";
+      if (tp < MC.koldMaaske || p >= 25 || g >= MC.vindMaaske) return "meh";
+      return "good";
+    }
+    var tl = "", lbl = "";
     for (var k = 0; k < 15; k++) {
       var j = start + k; if (j >= d.hourly.time.length) break;
-      var pp = d.hourly.precipitation_probability[j] || 0, hh = +d.hourly.time[j].slice(11, 13);
-      tl += '<i class="' + (pp >= 50 ? "bad" : pp >= 25 ? "meh" : "good") + '"></i>';
-      lbl += '<span>' + (k % 3 === 0 ? (k === 0 ? "Nu" : pad(hh)) : "") + '</span>';
-      var sr = +d.daily.sunrise[0].slice(11, 13), ss = +d.daily.sunset[0].slice(11, 13);
-      var gh = d.hourly.wind_gusts_10m ? d.hourly.wind_gusts_10m[j] : 0;
-      var dry = pp < 25 && hh >= sr && hh < ss && d.hourly.temperature_2m[j] >= MC.koldNej && gh < MC.vindNej;
-      if (dry) { run = run || { s: hh, e: hh, t: [] }; run.e = hh; run.t.push(d.hourly.temperature_2m[j]); }
-      if (!dry || k === 14) { if (run && (!best || run.e - run.s > best.e - best.s)) best = run; if (!dry) run = null; }
+      tl += '<i class="' + rateHour(j) + '"></i>';
+      lbl += '<span>' + (k % 3 === 0 ? (k === 0 ? "Nu" : d.hourly.time[j].slice(11, 13)) : "") + '</span>';
     }
-    var v = dom(0), tip;
-    if (best && best.e > best.s) tip = "Bedste tur: kl. " + pad(best.s) + "–" + pad(best.e + 1) + " · tørt · " + Math.round(Math.max.apply(null, best.t)) + "°";
-    else if (best) tip = "Kun en kort tør periode omkring kl. " + pad(best.s);
-    else tip = "Ingen gode perioder i dagslys de næste timer";
+    // Næste gode (eller acceptable) periode på mindst 2 timer i dagslys, de næste 3 døgn
+    function findRun(okSet) {
+      var run = null;
+      for (var j = start; j < Math.min(d.hourly.time.length, start + 72); j++) {
+        var r = rateHour(j);
+        if (okSet.indexOf(r) >= 0) { run = run || { s: j, e: j }; run.e = j; }
+        else { if (run && run.e - run.s >= 1) return run; run = null; }
+      }
+      return run && run.e - run.s >= 1 ? run : null;
+    }
+    function dayName(j) {
+      var ds = d.hourly.time[j].slice(0, 10), di = d.daily.time.indexOf(ds);
+      if (di === 0) return "i dag"; if (di === 1) return "i morgen";
+      return DAGE[new Date(ds + "T12:00:00").getDay()];
+    }
+    var goodRun = findRun(["good"]), okRun = goodRun || findRun(["good", "meh"]), tip;
+    if (okRun) {
+      var temps = d.hourly.temperature_2m.slice(okRun.s, okRun.e + 1);
+      tip = (goodRun ? "Næste gode tur: " : "Næste mulighed (køligt): ") + dayName(okRun.s) + " kl. " +
+        d.hourly.time[okRun.s].slice(11, 13) + "–" + pad(+d.hourly.time[okRun.e].slice(11, 13) + 1) + " · op til " + Math.round(Math.max.apply(null, temps)) + "°";
+    } else tip = "Ingen gode perioder de næste 3 dage";
+    // Efter solnedgang handler overskriften om i morgen
+    var afterDark = now.getHours() >= sunH(d.daily.time[0])[1] && d.daily.time.length > 1, di0 = afterDark ? 1 : 0;
+    var v = dom(di0);
     tip = v[2] + " · " + tip;
     $("hourly").innerHTML =
-      '<div class="mc-top"><span class="mc-title">MC-vejr i dag</span><span class="pill ' + v[0] + '">' + v[1] + '</span>' +
-      (d.daily.temperature_2m_min[0] <= MC.frost ? '<span class="ice">Glat morgen</span>' : "") +
-      (salted(0) ? '<span class="ice salt">Saltede veje</span>' : "") + '</div>' +
+      '<div class="mc-top"><span class="mc-title">MC-vejr ' + (afterDark ? "i morgen" : "i dag") + '</span><span class="pill ' + v[0] + '">' + v[1] + '</span>' +
+      (d.daily.temperature_2m_min[di0] <= MC.frost ? '<span class="ice">Glat morgen</span>' : "") +
+      (salted(di0) ? '<span class="ice salt">Saltede veje</span>' : "") + '</div>' +
       '<div class="mc-tip">' + tip + '</div>' +
       '<div class="tl">' + tl + '</div><div class="tl lbl">' + lbl + '</div>';
 
@@ -223,7 +250,7 @@
   loadWeather(); setInterval(loadWeather, 15 * 60 * 1000);
 
   /* ---------- Automatisk opdatering: genindlæs når der er en ny version på GitHub ---------- */
-  var APP_VERSION = "39";
+  var APP_VERSION = "41";
   function checkVersion() {
     if (DEMO || location.protocol === "file:") return;
     var x = new XMLHttpRequest();

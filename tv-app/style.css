@@ -110,6 +110,7 @@ body {
 .tl { display: flex; gap: 4px; }
 .tl i { flex: 1; height: 14px; border-radius: 4px; }
 .tl i.good { background: #3ddc97; } .tl i.meh { background: #ffd25a; } .tl i.bad { background: #ff6b6b; }
+.tl i.dark { background: rgba(255,255,255,.12); }
 .tl.lbl { margin-top: 6px; }
 .tl.lbl span { flex: 1; font-size: 15px; opacity: .6; }
 
