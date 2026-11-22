@@ -106,7 +106,7 @@
     return "https://api.open-meteo.com/v1/forecast?latitude=" + C.lat + "&longitude=" + C.lon +
       "&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,wind_gusts_10m,relative_humidity_2m,is_day" +
       "&hourly=temperature_2m,weather_code,precipitation_probability,is_day" +
-      "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,sunrise,sunset" +
+      "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,wind_gusts_10m_max,sunrise,sunset" +
       "&timezone=Europe%2FCopenhagen&forecast_days=10&wind_speed_unit=ms";
   }
   function loadWeather() {
@@ -138,44 +138,49 @@
       "<div><b>Regn i dag</b>" + d.daily.precipitation_sum[0].toFixed(1) + " mm</div>" +
       "<div><b>Sol</b>" + hhmm(d.daily.sunrise[0]) + " – " + hhmm(d.daily.sunset[0]) + "</div>";
 
-    // Time for time: næste 24 timer, hver 3. time
+    // ---------- MC-vejr ----------
     var nowKey = d.current.time.slice(0, 13), start = 0;
     for (var i = 0; i < d.hourly.time.length; i++) if (d.hourly.time[i].slice(0, 13) === nowKey) { start = i; break; }
-    var h = "";
-    for (var k = 0; k < 8; k++) {
-      var j = start + k * 3; if (j >= d.hourly.time.length) break;
-      var pp = d.hourly.precipitation_probability[j];
-      h += '<div class="hr"><div class="t">' + (k === 0 ? "Nu" : d.hourly.time[j].slice(11, 13)) + '</div>' +
-        icon(d.hourly.weather_code[j], !!d.hourly.is_day[j]) +
-        '<div class="v">' + Math.round(d.hourly.temperature_2m[j]) + '°</div>' +
-        '<div class="p">' + (pp >= 20 ? pp + "%" : "") + '</div></div>';
+    function dom(n) {
+      var p = d.daily.precipitation_probability_max[n] || 0, mm = d.daily.precipitation_sum[n] || 0;
+      var tx = d.daily.temperature_2m_max[n], g = (d.daily.wind_gusts_10m_max || d.daily.wind_speed_10m_max)[n] || 0;
+      if (mm >= 2 || p >= 70 || g >= 17 || tx < 4) return ["bad", "Nej"];
+      if (mm >= 0.3 || p >= 35 || g >= 12 || tx < 10) return ["meh", "Måske"];
+      return ["good", "Godt"];
     }
-    $("hourly").innerHTML = h;
+    // I dag: tidslinje for de næste 15 timer + bedste tørre vindue i dagslys
+    var tl = "", lbl = "", best = null, run = null;
+    for (var k = 0; k < 15; k++) {
+      var j = start + k; if (j >= d.hourly.time.length) break;
+      var pp = d.hourly.precipitation_probability[j] || 0, hh = +d.hourly.time[j].slice(11, 13);
+      tl += '<i class="' + (pp >= 50 ? "bad" : pp >= 25 ? "meh" : "good") + '"></i>';
+      lbl += '<span>' + (k % 3 === 0 ? (k === 0 ? "Nu" : pad(hh)) : "") + '</span>';
+      var dry = pp < 25 && hh >= 7 && hh <= 21;
+      if (dry) { run = run || { s: hh, e: hh, t: [] }; run.e = hh; run.t.push(d.hourly.temperature_2m[j]); }
+      if (!dry || k === 14) { if (run && (!best || run.e - run.s > best.e - best.s)) best = run; if (!dry) run = null; }
+    }
+    var v = dom(0), tip;
+    if (best && best.e > best.s) tip = "Bedste tur: kl. " + pad(best.s) + "–" + pad(best.e + 1) + " · tørt · " + Math.round(Math.max.apply(null, best.t)) + "°";
+    else if (best) tip = "Kun en kort tør periode omkring kl. " + pad(best.s);
+    else tip = "Ingen tørre perioder i dagslys de næste timer";
+    $("hourly").innerHTML =
+      '<div class="mc-top"><span class="mc-title">MC-vejr i dag</span><span class="pill ' + v[0] + '">' + v[1] + '</span>' +
+      (d.daily.temperature_2m_min[0] <= 1 ? '<span class="ice">Glat morgen</span>' : "") + '</div>' +
+      '<div class="mc-tip">' + tip + '</div>' +
+      '<div class="tl">' + tl + '</div><div class="tl lbl">' + lbl + '</div>';
 
-    // 10 dage: min/max og regnrisiko gennem døgnet (8 blokke à 3 timer)
-    var byDay = {};
-    for (var q = 0; q < d.hourly.time.length; q++) {
-      var ds = d.hourly.time[q].slice(0, 10), hh = +d.hourly.time[q].slice(11, 13);
-      var blk = (byDay[ds] = byDay[ds] || [-1, -1, -1, -1, -1, -1, -1, -1]), bi = hh / 3 | 0;
-      blk[bi] = Math.max(blk[bi], d.hourly.precipitation_probability[q] || 0);
-    }
-    var nowHour = now.getHours();
-    var out = '<div class="day head"><span></span><span></span><span class="tt">Min / max</span>' +
-      '<div class="rain lbl"><i>00</i><i></i><i>06</i><i></i><i>12</i><i></i><i>18</i><i></i></div><span class="w">Nedbør</span></div>';
-    for (var n = 0; n < d.daily.time.length; n++) {
-      var dt = new Date(d.daily.time[n] + "T12:00:00");
-      var mn = d.daily.temperature_2m_min[n], mx = d.daily.temperature_2m_max[n], mm = d.daily.precipitation_sum[n];
-      var blocks = byDay[d.daily.time[n]] || [], bars = "";
-      for (var z = 0; z < 8; z++) {
-        var pr = blocks[z] == null ? -1 : blocks[z];
-        var past = n === 0 && (z * 3 + 3) <= nowHour;
-        bars += '<i class="' + (pr < 0 || past ? "na" : pr >= 60 ? "hi" : pr >= 30 ? "md" : "lo") + '" style="height:' + (pr < 0 || past ? 3 : Math.max(3, pr)) + '%"></i>';
-      }
-      out += '<div class="day"><span class="n">' + (n === 0 ? "I dag" : DAGE_K[dt.getDay()] + " " + dt.getDate()) + '</span>' +
+    // 7 dage som kort
+    var out = "";
+    for (var n = 0; n < Math.min(7, d.daily.time.length); n++) {
+      var dt = new Date(d.daily.time[n] + "T12:00:00"), vv = dom(n);
+      var g = Math.round((d.daily.wind_gusts_10m_max || d.daily.wind_speed_10m_max)[n] || 0);
+      out += '<div class="dc ' + vv[0] + '"><div class="dn">' + (n === 0 ? "I dag" : DAGE_K[dt.getDay()]) + '</div>' +
         icon(d.daily.weather_code[n], true) +
-        '<span class="tt"><span class="lo">' + Math.round(mn) + '°</span> <span class="hi">' + Math.round(mx) + '°</span></span>' +
-        '<div class="rain">' + bars + '</div>' +
-        '<span class="w">' + (mm >= 0.1 ? mm.toFixed(1) + " mm" : "–") + '</span></div>';
+        '<div class="tx">' + Math.round(d.daily.temperature_2m_max[n]) + '°</div>' +
+        '<div class="tn">' + Math.round(d.daily.temperature_2m_min[n]) + '°' + (d.daily.temperature_2m_min[n] <= 1 ? ' <b>glat</b>' : '') + '</div>' +
+        '<div class="kv"><span>Regn</span>' + (d.daily.precipitation_probability_max[n] || 0) + '%</div>' +
+        '<div class="kv"><span>Vind</span>' + g + ' m/s</div>' +
+        '<div class="vb">' + vv[1] + '</div></div>';
     }
     $("daily").innerHTML = out;
     theme(!!c.is_day, c.weather_code, now.getHours());
@@ -186,7 +191,7 @@
     var codes = [2, 3, 61, 80, 1, 0, 3, 71, 2, 63], hourly = { time: [], temperature_2m: [], weather_code: [], precipitation_probability: [], is_day: [] };
     for (var i = 0; i < 48; i++) { var d = new Date(t0.getTime() + i * 3600e3); hourly.time.push(iso(d)); hourly.temperature_2m.push(5 + 3 * Math.sin(i / 4)); hourly.weather_code.push(codes[(i / 6 | 0) % 10]); hourly.precipitation_probability.push((i * 17) % 90); hourly.is_day.push(d.getHours() > 7 && d.getHours() < 16 ? 1 : 0); }
     var daily = { time: [], weather_code: codes, temperature_2m_max: [], temperature_2m_min: [], precipitation_sum: [], precipitation_probability_max: [], wind_speed_10m_max: [], sunrise: [], sunset: [] };
-    for (var k = 0; k < 10; k++) { var dd = new Date(t0.getTime() + k * 864e5); var ds = iso(dd).slice(0, 10); daily.time.push(ds); daily.temperature_2m_max.push(7 + (k % 4)); daily.temperature_2m_min.push(1 + (k % 3) - (k === 7 ? 4 : 0)); daily.precipitation_sum.push([0, .4, 6.2, 3.1, 0, 0, 1.2, 2.5, 0, 8][k]); daily.precipitation_probability_max.push([10, 35, 90, 70, 5, 0, 40, 60, 15, 95][k]); daily.wind_speed_10m_max.push(4 + k % 5); daily.sunrise.push(ds + "T08:12"); daily.sunset.push(ds + "T15:51"); }
+    for (var k = 0; k < 10; k++) { var dd = new Date(t0.getTime() + k * 864e5); var ds = iso(dd).slice(0, 10); daily.time.push(ds); daily.temperature_2m_max.push(7 + (k % 4)); daily.temperature_2m_min.push(1 + (k % 3) - (k === 7 ? 4 : 0)); daily.precipitation_sum.push([0, .4, 6.2, 3.1, 0, 0, 1.2, 2.5, 0, 8][k]); daily.precipitation_probability_max.push([10, 35, 90, 70, 5, 0, 40, 60, 15, 95][k]); daily.wind_speed_10m_max.push(4 + k % 5); (daily.wind_gusts_10m_max = daily.wind_gusts_10m_max || []).push(8 + (k * 3) % 12); daily.sunrise.push(ds + "T08:12"); daily.sunset.push(ds + "T15:51"); }
     return { _t: Date.now(), current: { time: iso(t0), temperature_2m: 6.4, apparent_temperature: 3.1, weather_code: 2, wind_speed_10m: 5.2, wind_gusts_10m: 11, relative_humidity_2m: 88, is_day: 1 }, hourly: hourly, daily: daily };
   }
   loadWeather(); setInterval(loadWeather, 15 * 60 * 1000);

@@ -95,38 +95,36 @@ body {
 
 #right { flex: 1; display: flex; flex-direction: column; gap: 22px; min-width: 0; }
 
-#hourly {
-  display: flex; justify-content: space-between;
-  padding-bottom: 18px; border-bottom: 1px solid rgba(255,255,255,.14);
-}
-.hr { width: 80px; text-align: center; font-size: 19px; }
-.hr .t { opacity: .7; }
-.hr svg { width: 42px; height: 42px; margin: 6px auto 2px; display: block; }
-.hr .v { font-size: 24px; font-weight: 600; }
-.hr .p { font-size: 15px; color: #bfe6ff; font-weight: 600; height: 18px; margin-top: 2px; }
+/* ---------- MC-vejr i dag ---------- */
+#hourly { padding-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,.14); }
+.mc-top { display: flex; align-items: center; gap: 14px; }
+.mc-title { font-size: 26px; font-weight: 700; }
+.pill { font-size: 20px; font-weight: 800; padding: 4px 16px; border-radius: 99px; color: #08121f; }
+.pill.good, .dc.good .vb { background: #3ddc97; }
+.pill.meh,  .dc.meh .vb  { background: #ffd25a; }
+.pill.bad,  .dc.bad .vb  { background: #ff6b6b; }
+.ice { font-size: 18px; font-weight: 700; color: #bfe6ff; border: 2px solid #bfe6ff; padding: 2px 12px; border-radius: 99px; }
+.mc-tip { font-size: 24px; margin: 10px 0 14px; opacity: .9; }
+.tl { display: flex; gap: 4px; }
+.tl i { flex: 1; height: 14px; border-radius: 4px; }
+.tl i.good { background: #3ddc97; } .tl i.meh { background: #ffd25a; } .tl i.bad { background: #ff6b6b; }
+.tl.lbl { margin-top: 6px; }
+.tl.lbl span { flex: 1; font-size: 15px; opacity: .6; }
 
-#daily { display: flex; flex-direction: column; flex: 1; justify-content: space-between; }
-.day {
-  display: grid; grid-template-columns: 96px 40px 104px 1fr 86px;
-  align-items: center; font-size: 21px; height: 28px; column-gap: 10px;
+/* ---------- 7 dage som kort ---------- */
+#daily { display: flex; flex-direction: row; gap: 10px; flex: 1; }
+.dc {
+  flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center;
+  background: rgba(255,255,255,.06); border-radius: 18px; padding: 12px 6px 0; overflow: hidden;
 }
-.day .n { font-weight: 600; }
-.day svg { width: 28px; height: 28px; }
-.day .tt { white-space: nowrap; }
-.day .lo { opacity: .6; }
-.day .hi { font-weight: 600; margin-left: 6px; }
-.day .w { font-size: 17px; opacity: .75; text-align: right; }
-.day.head { height: 18px; font-size: 13px; text-transform: uppercase; letter-spacing: 1.2px; opacity: .5; }
-.day.head .w, .day.head .tt { font-size: 13px; }
-/* Regnrisiko: 8 søjler (3 timer hver) – højden er sandsynligheden */
-.rain { display: flex; align-items: flex-end; gap: 5px; height: 24px; }
-.rain i { flex: 1; border-radius: 3px 3px 1px 1px; background: rgba(255,255,255,.14); }
-.rain i.lo { background: rgba(140,200,255,.45); }
-.rain i.md { background: #6ec6ff; }
-.rain i.hi { background: #3fa4ff; box-shadow: 0 0 8px rgba(63,164,255,.6); }
-.rain i.na { background: rgba(255,255,255,.08); }
-.rain.lbl { height: auto; align-items: center; }
-.rain.lbl i { background: none; font-style: normal; text-align: left; }
+.dc .dn { font-size: 24px; font-weight: 700; }
+.dc svg { width: 60px; height: 60px; margin: 8px 0 6px; }
+.dc .tx { font-size: 46px; font-weight: 700; line-height: 1; }
+.dc .tn { font-size: 21px; opacity: .65; margin: 6px 0 14px; white-space: nowrap; }
+.dc .tn b { color: #bfe6ff; font-weight: 700; }
+.dc .kv { font-size: 19px; line-height: 1.6; white-space: nowrap; }
+.dc .kv span { opacity: .55; margin-right: 6px; font-size: 16px; }
+.dc .vb { margin-top: auto; width: calc(100% + 12px); text-align: center; font-size: 22px; font-weight: 800; color: #08121f; padding: 6px 0; }
 
 /* ---------- Dock ---------- */
 #dock {
