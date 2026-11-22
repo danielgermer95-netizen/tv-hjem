@@ -23,7 +23,7 @@ window.TV_CONFIG = {
     { key: "drtv",      navn: "DR TV",       match: /^dr\s?tv/i,                id: null },
     { key: "tv2play",   navn: "TV 2 Play",   match: /tv\s?2\s?play/i,           id: null },
     { key: "netflix",   navn: "Netflix",     match: /^netflix/i,                id: "3201907018807" },
-    { key: "hbomax",    navn: "HBO Max",     match: /hbo\s?max|^max$/i,         id: null },
+    { key: "hbomax",    navn: "HBO Max",     match: /hbo|^max\b/i,            id: null },
     { key: "prime",     navn: "Prime Video", match: /prime\s?video|amazon/i,    id: "3201910019365" },
     { key: "disney",    navn: "Disney+",     match: /disney/i,                  id: "3201901017640" },
     { key: "viaplay",   navn: "Viaplay",     match: /viaplay/i,                 id: null },

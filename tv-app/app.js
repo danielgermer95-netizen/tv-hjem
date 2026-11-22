@@ -187,6 +187,8 @@
   function toast(msg) { var t = $("toast"); t.textContent = msg; t.classList.remove("hidden"); clearTimeout(toastT); toastT = setTimeout(function () { t.classList.add("hidden"); }, 3500); }
 
   /* ---------- Apps på TV'et ---------- */
+  // config.js på TV'et opdateres ikke automatisk – ret søgningen efter HBO her
+  C.apps.forEach(function (a) { if (a.key === "hbomax") a.match = /hbo|^max\b/i; });
   var installed = [];
   function findInfo(a) {
     for (var i = 0; i < installed.length; i++) if (a.match && a.match.test(installed[i].name)) return installed[i];
@@ -321,7 +323,7 @@
       // Kun nye kommandoer, mens Hjem er synlig – ellers udføres gamle tryk, når Hjem kommer frem
       if (document.hidden || !m.time || Date.now() / 1000 - m.time > 15) return;
       var cmd = (m.message || "").split(":");
-      if (cmd[0] === "launch") launch(cmd[1]);
+      if (cmd[0] === "launch") return; // App-start sker nu direkte fra mobilen
       else if (cmd[0] === "key") sendKey(cmd[1]);
       else if (cmd[0] === "clear") clearNote();
       return;
