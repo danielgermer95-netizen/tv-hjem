@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=1920, height=1080">
+  <title>Hjem</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="stage">
+    <div id="sky"></div>
+    <div id="stars"></div>
+    <div id="precip"></div>
+    <svg id="hills" viewBox="0 0 1920 380" preserveAspectRatio="none" aria-hidden="true">
+      <path class="h1" d="M0 230 C 220 150 380 190 560 140 S 900 60 1120 130 S 1500 90 1700 150 S 1920 140 1920 140 V380 H0Z"/>
+      <path class="h2" d="M0 290 C 260 230 480 270 700 230 S 1100 190 1340 240 S 1720 220 1920 250 V380 H0Z"/>
+      <path class="h3" d="M0 340 C 300 310 620 330 960 315 S 1600 300 1920 320 V380 H0Z"/>
+    </svg>
+
+    <header id="top">
+      <div id="clockwrap">
+        <div id="date"></div>
+        <div id="clock">--:--</div>
+      </div>
+      <div id="note" class="glass hidden">
+        <img id="note-img" alt="">
+        <div id="note-text"></div>
+        <div id="note-meta"></div>
+      </div>
+    </header>
+
+    <section id="weather" class="glass">
+      <div id="now">
+        <div class="now-place"><span id="city"></span><span id="updated"></span></div>
+        <div class="now-main">
+          <div id="now-icon"></div>
+          <div id="now-temp">--°</div>
+        </div>
+        <div id="now-desc"></div>
+        <div id="now-stats"></div>
+      </div>
+      <div id="right">
+        <div id="hourly"></div>
+        <div id="daily"></div>
+      </div>
+    </section>
+
+    <nav id="dock"></nav>
+    <div id="toast" class="hidden"></div>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
