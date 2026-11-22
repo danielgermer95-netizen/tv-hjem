@@ -526,13 +526,16 @@ var RC = (function () {
           data: { appId: "org.tizen.browser", action_type: "NATIVE_LAUNCH", metaTag: url } } });
     toast("Åbner startskærmen i TV'ets browser");
   }
-  $("#openHome").onclick = function () {
-    if (!ready()) { toast("Forbind fjernbetjeningen først"); return connect(); }
-    openBrowserHome();
-  };
+  // Den installerede "Hjem"-app (ID fra tv-app/config.xml). Egne apps står ikke altid på TV'ets app-liste.
+  function openHjem() {
+    var id = appId("hjem") || "TvHjem0001.TvHjem";
+    launch(id);
+    if (id.indexOf(".") > 0) launch(id.split(".")[0]);
+    toast("Åbner Hjem på TV'et");
+  }
+  $("#openHome").onclick = openHjem;
   $("#hjemApp").onclick = function () {
-    var id = appId("hjem");
-    if (id) { launch(id); toast("Åbner Hjem på TV'et"); } else openBrowserHome();
+    openHjem();
   };
 
   // Genforbind når appen kommer frem igen
