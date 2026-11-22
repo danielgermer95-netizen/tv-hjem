@@ -13,6 +13,7 @@
 <style>
   :root { --bg:#0b1020; --card:rgba(255,255,255,.07); --line:rgba(255,255,255,.12); --txt:#fff; --mut:rgba(255,255,255,.6); --acc:#7c8cff; }
   * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+  button { touch-action:manipulation; }
   html,body { height:100%; overflow-x:hidden; -webkit-text-size-adjust:100%; background:var(--bg); color:var(--txt); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
   body { background: radial-gradient(120% 60% at 50% 0%, #2a2f6b 0%, var(--bg) 60%); display:flex; flex-direction:column;
          padding: calc(env(safe-area-inset-top) + 14px) 16px calc(env(safe-area-inset-bottom) + 14px); overscroll-behavior:none; }
@@ -431,7 +432,7 @@ $("#clearNote").onclick = function () { post("clear", { "Title": "cmd" }).then(f
 
 // ---------- Fjernbetjening: direkte til TV'et over Wi-Fi ----------
 var RC = (function () {
-  var ws = null, state = "off", queue = [], apps = [], pendingTimer, iconFor = {}, iconDone = {};
+  var ws = null, state = "off", queue = [], apps = [], pendingTimer, iconFor = {}, iconDone = {}, everOk = false, retryT;
   var NAME = btoa("TV Hjem mobil");
   var KNOWN = { netflix: "3201907018807", youtube: "111299001912", prime: "3201910019365", disney: "3201901017640",
                 appletv: "3201807016597", spotify: "3201606009684" };
@@ -452,16 +453,17 @@ var RC = (function () {
     if (ws && (state === "on" || state === "wait")) return;
     ui("wait", "Forbinder til " + ip + "…");
     var tok = get("tvtoken");
+    var me;
     try {
-      ws = new WebSocket("wss://" + ip + ":8002/api/v2/channels/samsung.remote.control?name=" + NAME + (tok ? "&token=" + tok : ""));
+      me = ws = new WebSocket("wss://" + ip + ":8002/api/v2/channels/samsung.remote.control?name=" + NAME + (tok ? "&token=" + tok : ""));
     } catch (e) { return fail(); }
     clearTimeout(pendingTimer);
     pendingTimer = setTimeout(function () { if (state === "wait") ui("wait", "Tryk “Tillad” på TV'et…"); }, 2500);
-    ws.onmessage = function (ev) {
+    me.onmessage = function (ev) {
       var m; try { m = JSON.parse(ev.data); } catch (e) { return; }
       if (m.event === "ms.channel.connect") {
         if (m.data && m.data.token) set("tvtoken", m.data.token);
-        ui("on", "Forbundet til TV'et");
+        ui("on", "Forbundet til TV'et"); everOk = true;
         $("#setup").classList.remove("on");
         raw({ method: "ms.channel.emit", params: { event: "ed.installedApp.get", to: "host" } });
         while (queue.length) ws.send(queue.shift());
@@ -484,8 +486,15 @@ var RC = (function () {
         ui("off", "TV'et afviste forbindelsen"); toast("Tillad forbindelsen på TV'et og prøv igen");
       }
     };
-    ws.onclose = function () { if (state === "wait") fail(); else ui("off", "Ikke forbundet"); ws = null; };
-    ws.onerror = function () {};
+    me.onclose = function () {
+      if (me !== ws) return;               // en gammel forbindelse – ignorér
+      ws = null;
+      if (state === "wait" && !everOk) return fail();
+      ui("off", "Ikke forbundet");
+      // Forbind straks igen i baggrunden, så næste tryk virker med det samme
+      if (!document.hidden) { clearTimeout(retryT); retryT = setTimeout(connect, 600); }
+    };
+    me.onerror = function () {};
   }
   function fail() {
     ui("off", "Kunne ikke forbinde");
@@ -494,7 +503,7 @@ var RC = (function () {
   }
   function raw(obj) {
     var s = JSON.stringify(obj);
-    if (ws && state === "on") ws.send(s);
+    if (ws && state === "on" && ws.readyState === 1) ws.send(s);
     else { queue.push(s); if (queue.length > 5) queue.shift(); connect(); }
   }
   function key(k) {
@@ -564,7 +573,15 @@ var RC = (function () {
   };
 
   // Genforbind når appen kommer frem igen
-  document.addEventListener("visibilitychange", function () { if (!document.hidden && get("tvip") && state !== "on") connect(); });
+  // iPhone lukker forbindelsen i stilhed, når appen ligger i baggrunden.
+  // Når appen kommer frem igen, åbner vi en frisk forbindelse med det samme.
+  function fresh() {
+    if (!get("tvip") || document.hidden) return;
+    if (ws) { var old = ws; ws = null; try { old.close(); } catch (e) {} }
+    state = "off"; connect();
+  }
+  document.addEventListener("visibilitychange", function () { if (!document.hidden) fresh(); });
+  window.addEventListener("pageshow", function (e) { if (e.persisted) fresh(); });
   if (get("tvip")) connect(); else ui("off", "Ikke forbundet");
 
   function ready() { return state === "on"; }
