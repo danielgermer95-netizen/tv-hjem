@@ -78,13 +78,13 @@
     var p = $("precip"), wet = (code >= 51 && code <= 67) || (code >= 80 && code <= 82) || code >= 95,
         snow = (code >= 71 && code <= 77) || code === 85 || code === 86;
     p.className = snow ? "snow" : "";
-    var n = wet || snow ? 70 : 0, html = "";
+    var n = wet || snow ? 24 : 0, html = "";
     for (var i = 0; i < n; i++) html += '<i style="left:' + (Math.random() * 1920 | 0) + 'px;animation-duration:' + (snow ? 6 + Math.random() * 6 : .7 + Math.random() * .5) + 's;animation-delay:-' + (Math.random() * 6).toFixed(2) + 's"></i>';
     p.innerHTML = html;
   }
   (function stars() {
     var h = "";
-    for (var i = 0; i < 90; i++) h += '<i style="left:' + (Math.random() * 1920 | 0) + 'px;top:' + (Math.random() * 640 | 0) + 'px;animation-delay:-' + (Math.random() * 4).toFixed(1) + 's;opacity:' + (.3 + Math.random() * .7).toFixed(2) + '"></i>';
+    for (var i = 0; i < 60; i++) h += '<i style="left:' + (Math.random() * 1920 | 0) + 'px;top:' + (Math.random() * 640 | 0) + 'px;animation-delay:-' + (Math.random() * 4).toFixed(1) + 's;opacity:' + (.3 + Math.random() * .7).toFixed(2) + '"></i>';
     $("stars").innerHTML = h;
   })();
 
