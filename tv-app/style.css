@@ -126,7 +126,9 @@ body {
 .dc .tn b { color: #bfe6ff; font-weight: 700; }
 .dc .kv { font-size: 19px; line-height: 1.6; white-space: nowrap; }
 .dc .kv span { opacity: .55; margin-right: 6px; font-size: 16px; }
-.dc .vb { margin-top: auto; width: calc(100% + 12px); text-align: center; font-size: 22px; font-weight: 800; color: #08121f; padding: 6px 0; }
+.dc .why { margin-top: auto; font-size: 16px; font-weight: 600; opacity: .8; padding: 0 4px 8px; text-align: center; line-height: 1.2; }
+.ice.salt { color: #ffd2a6; border-color: #ffd2a6; }
+.dc .vb { width: calc(100% + 12px); text-align: center; font-size: 22px; font-weight: 800; color: #08121f; padding: 6px 0; }
 
 /* ---------- Dock ---------- */
 #dock {

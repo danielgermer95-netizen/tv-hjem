@@ -105,9 +105,9 @@
   function weatherUrl() {
     return "https://api.open-meteo.com/v1/forecast?latitude=" + C.lat + "&longitude=" + C.lon +
       "&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,wind_gusts_10m,relative_humidity_2m,is_day" +
-      "&hourly=temperature_2m,weather_code,precipitation_probability,is_day" +
+      "&hourly=temperature_2m,weather_code,precipitation_probability,precipitation,wind_gusts_10m,is_day" +
       "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,wind_gusts_10m_max,sunrise,sunset" +
-      "&timezone=Europe%2FCopenhagen&forecast_days=10&wind_speed_unit=ms";
+      "&timezone=Europe%2FCopenhagen&past_days=3&forecast_days=10&wind_speed_unit=ms";
   }
   function loadWeather() {
     if (DEMO) return render(demoData());
@@ -126,6 +126,12 @@
   function hhmm(iso) { return iso.slice(11, 16); }
   function render(d, old) {
     var c = d.current, now = new Date();
+    // De seneste dage (past_days) bruges kun til at vurdere, om vejene er saltede
+    var today = c.time.slice(0, 10), off = d.daily.time.indexOf(today), pastMin = [];
+    if (off > 0) {
+      pastMin = d.daily.temperature_2m_min.slice(0, off);
+      Object.keys(d.daily).forEach(function (k) { if (d.daily[k] && d.daily[k].slice) d.daily[k] = d.daily[k].slice(off); });
+    }
     $("city").textContent = C.by;
     var t = new Date(d._t || Date.now());
     $("updated").textContent = (old ? "Gemt " : "Opdateret ") + pad(t.getHours()) + ":" + pad(t.getMinutes());
@@ -141,12 +147,27 @@
     // ---------- MC-vejr ----------
     var nowKey = d.current.time.slice(0, 13), start = 0;
     for (var i = 0; i < d.hourly.time.length; i++) if (d.hourly.time[i].slice(0, 13) === nowKey) { start = i; break; }
+    /* MC-vurdering (Honda CB650R, naked bike, sport-touring-dæk):
+       Kulde: dæk mister greb under ~10°, bliver hårde under ~5° (Michelin)
+       Vind: naked bike – vindstød over 11 m/s mærkes, over 15 m/s frarådes
+       Salt: frost de seneste dage = sandsynligt saltede veje (ætser en ny cykel)
+       Regn: våd + kold asfalt er det farligste */
+    var MC = { koldNej: 5, koldMaaske: 10, vindMaaske: 11, vindNej: 15, regnMaaske: 30, regnNej: 60, mmMaaske: 0.2, mmNej: 1, frost: 1 };
+    function gustOf(n) { return ((d.daily.wind_gusts_10m_max || d.daily.wind_speed_10m_max)[n]) || 0; }
+    function salted(n) {
+      var mins = pastMin.concat(d.daily.temperature_2m_min.slice(0, n + 1)).slice(-4);
+      return mins.some(function (x) { return x <= MC.frost; });
+    }
     function dom(n) {
       var p = d.daily.precipitation_probability_max[n] || 0, mm = d.daily.precipitation_sum[n] || 0;
-      var tx = d.daily.temperature_2m_max[n], g = (d.daily.wind_gusts_10m_max || d.daily.wind_speed_10m_max)[n] || 0;
-      if (mm >= 2 || p >= 70 || g >= 17 || tx < 4) return ["bad", "Nej"];
-      if (mm >= 0.3 || p >= 35 || g >= 12 || tx < 10) return ["meh", "Måske"];
-      return ["good", "Godt"];
+      var tx = d.daily.temperature_2m_max[n], g = gustOf(n), bad = [], meh = [];
+      if (tx < MC.koldNej) bad.push("For koldt"); else if (tx < MC.koldMaaske) meh.push("Kolde dæk");
+      if (p >= MC.regnNej || mm >= MC.mmNej) bad.push("Regn"); else if (p >= MC.regnMaaske || mm >= MC.mmMaaske) meh.push("Byger");
+      if (g >= MC.vindNej) bad.push("Blæst"); else if (g >= MC.vindMaaske) meh.push("Vindstød");
+      if (salted(n)) meh.push("Salt på vejen");
+      if (bad.length) return ["bad", "Nej", bad[0]];
+      if (meh.length) return ["meh", "Måske", meh[0]];
+      return ["good", "Godt", "Fint MC-vejr"];
     }
     // I dag: tidslinje for de næste 15 timer + bedste tørre vindue i dagslys
     var tl = "", lbl = "", best = null, run = null;
@@ -155,17 +176,21 @@
       var pp = d.hourly.precipitation_probability[j] || 0, hh = +d.hourly.time[j].slice(11, 13);
       tl += '<i class="' + (pp >= 50 ? "bad" : pp >= 25 ? "meh" : "good") + '"></i>';
       lbl += '<span>' + (k % 3 === 0 ? (k === 0 ? "Nu" : pad(hh)) : "") + '</span>';
-      var dry = pp < 25 && hh >= 7 && hh <= 21;
+      var sr = +d.daily.sunrise[0].slice(11, 13), ss = +d.daily.sunset[0].slice(11, 13);
+      var gh = d.hourly.wind_gusts_10m ? d.hourly.wind_gusts_10m[j] : 0;
+      var dry = pp < 25 && hh >= sr && hh < ss && d.hourly.temperature_2m[j] >= MC.koldNej && gh < MC.vindNej;
       if (dry) { run = run || { s: hh, e: hh, t: [] }; run.e = hh; run.t.push(d.hourly.temperature_2m[j]); }
       if (!dry || k === 14) { if (run && (!best || run.e - run.s > best.e - best.s)) best = run; if (!dry) run = null; }
     }
     var v = dom(0), tip;
     if (best && best.e > best.s) tip = "Bedste tur: kl. " + pad(best.s) + "–" + pad(best.e + 1) + " · tørt · " + Math.round(Math.max.apply(null, best.t)) + "°";
     else if (best) tip = "Kun en kort tør periode omkring kl. " + pad(best.s);
-    else tip = "Ingen tørre perioder i dagslys de næste timer";
+    else tip = "Ingen gode perioder i dagslys de næste timer";
+    tip = v[2] + " · " + tip;
     $("hourly").innerHTML =
       '<div class="mc-top"><span class="mc-title">MC-vejr i dag</span><span class="pill ' + v[0] + '">' + v[1] + '</span>' +
-      (d.daily.temperature_2m_min[0] <= 1 ? '<span class="ice">Glat morgen</span>' : "") + '</div>' +
+      (d.daily.temperature_2m_min[0] <= MC.frost ? '<span class="ice">Glat morgen</span>' : "") +
+      (salted(0) ? '<span class="ice salt">Saltede veje</span>' : "") + '</div>' +
       '<div class="mc-tip">' + tip + '</div>' +
       '<div class="tl">' + tl + '</div><div class="tl lbl">' + lbl + '</div>';
 
@@ -177,9 +202,10 @@
       out += '<div class="dc ' + vv[0] + '"><div class="dn">' + (n === 0 ? "I dag" : DAGE_K[dt.getDay()]) + '</div>' +
         icon(d.daily.weather_code[n], true) +
         '<div class="tx">' + Math.round(d.daily.temperature_2m_max[n]) + '°</div>' +
-        '<div class="tn">' + Math.round(d.daily.temperature_2m_min[n]) + '°' + (d.daily.temperature_2m_min[n] <= 1 ? ' <b>glat</b>' : '') + '</div>' +
+        '<div class="tn">' + Math.round(d.daily.temperature_2m_min[n]) + '°' + (d.daily.temperature_2m_min[n] <= MC.frost ? ' <b>glat</b>' : '') + '</div>' +
         '<div class="kv"><span>Regn</span>' + (d.daily.precipitation_probability_max[n] || 0) + '%</div>' +
         '<div class="kv"><span>Vind</span>' + g + ' m/s</div>' +
+        '<div class="why">' + vv[2] + '</div>' +
         '<div class="vb">' + vv[1] + '</div></div>';
     }
     $("daily").innerHTML = out;
