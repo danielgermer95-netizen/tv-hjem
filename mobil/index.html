@@ -186,7 +186,7 @@
 </style>
 </head>
 <body>
-  <header><h1>TV Hjem <small style="font-size:11px;opacity:.45;font-weight:500">v40</small></h1><span class="pill" id="status">● Klar</span></header>
+  <header><h1>TV Hjem <small style="font-size:11px;opacity:.45;font-weight:500">v42</small></h1><span class="pill" id="status">● Klar</span></header>
 
   <div class="tabs">
     <button data-tab="fjern" class="on">Fjernb.</button>
@@ -643,7 +643,7 @@ var RC = (function () {
 
 // ---------- Automatisk opdatering: tjek om der er kommet en ny version ----------
 (function () {
-  var MINE = "40", last = 0;
+  var MINE = "42", last = 0;
   function check() {
     if (Date.now() - last < 60000) return; last = Date.now();
     fetch("version.txt?t=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.ok ? r.text() : ""; }).then(function (v) {
@@ -681,6 +681,24 @@ var RC = (function () {
     return "Du kan IKKE se TV-skærmen. Navigér derfor ikke blindt rundt i menuer med piletaster; åbn hellere apps direkte og sig ærligt, hvis noget kræver at brugeren selv vælger på skærmen. " +
       "Når brugeren vil se noget, så brug show_suggestions og nævn kort forslagene; sig at hvilken tjeneste en titel ligger på kan have ændret sig. " +
       "Tidspunkt nu: " + new Date().toLocaleString("da-DK") + ". " + (lastAct ? "Seneste handling: " + lastAct + "." : "");
+  }
+  function findPoster(title, year) {
+    return new Promise(function (resolve) {
+      var cb = "__pp" + Math.random().toString(36).slice(2), sc = document.createElement("script"), done = false;
+      function fin(u) { if (done) return; done = true; delete window[cb]; if (sc.parentNode) sc.parentNode.removeChild(sc); resolve(u); }
+      window[cb] = function (res) {
+        var list = (res && res.results) || [], best = null;
+        list.forEach(function (r) {
+          var y = +(r.releaseDate || "").slice(0, 4);
+          if (r.artworkUrl100 && (!best || (year && Math.abs(y - year) < Math.abs(+(best.releaseDate || "").slice(0, 4) - year)))) best = r;
+        });
+        fin(best ? best.artworkUrl100.replace(/\/\d+x\d+bb\./, "/400x600bb.") : null);
+      };
+      sc.onerror = function () { fin(null); };
+      sc.src = "https://itunes.apple.com/search?media=movie&country=dk&limit=6&term=" + encodeURIComponent(title) + "&callback=" + cb;
+      document.head.appendChild(sc);
+      setTimeout(function () { fin(null); }, 4000);
+    });
   }
   function toTV(o) { return post(JSON.stringify(o), { "Title": "jarvis" }).catch(function () {}); }
   function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
@@ -724,6 +742,8 @@ var RC = (function () {
     if (t.name === "show_suggestions") {
       pendingShow = { heading: String(inp.heading || "").slice(0, 60), items: (inp.items || []).slice(0, 6).map(function (it) {
         return { title: String(it.title || "").slice(0, 60), year: it.year, service: String(it.service || "").slice(0, 30), why: String(it.why || "").slice(0, 70) }; }) };
+      // Hent rigtige plakater fra Apples filmkatalog her på telefonen (TV'et kan ikke selv)
+      await Promise.all(pendingShow.items.map(function (it) { return findPoster(it.title, it.year).then(function (u) { if (u) it.poster = u; }); }));
       say("🎬 " + pendingShow.items.map(function (i) { return i.title; }).join(", "), "act");
       lastAct = "viste forslag på TV'et: " + pendingShow.items.map(function (i) { return i.title; }).join(", ");
       return "Forslagene vises på TV'et, når du har svaret";

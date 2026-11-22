@@ -238,3 +238,5 @@ body {
 #jv.st-answer { padding-top: 30px; }
 #jv.st-answer #jv-text { font-size: 32px; }
 #jv.st-ready #jv-text, #jv.st-listening #jv-text { font-size: 30px; opacity: .75; font-weight: 500; }
+.jv-s { display: flex; align-items: center; gap: 8px; }
+.jv-ic { width: 30px; height: 30px; border-radius: 7px; object-fit: cover; }

@@ -250,7 +250,7 @@
   loadWeather(); setInterval(loadWeather, 15 * 60 * 1000);
 
   /* ---------- Automatisk opdatering: genindlæs når der er en ny version på GitHub ---------- */
-  var APP_VERSION = "41";
+  var APP_VERSION = "42";
   function checkVersion() {
     if (DEMO || location.protocol === "file:") return;
     var x = new XMLHttpRequest();
@@ -439,6 +439,14 @@
     var SERVICE = [[/netflix/i, "netflix"], [/hbo|max/i, "hbomax"], [/prime|amazon/i, "prime"], [/disney/i, "disney"],
       [/viaplay/i, "viaplay"], [/sky\s?show/i, "skyshow"], [/apple/i, "appletv"], [/dr\b|drtv/i, "drtv"], [/tv\s?2/i, "tv2play"], [/youtube/i, "youtube"]];
     function serviceKey(s) { for (var i = 0; i < SERVICE.length; i++) if (SERVICE[i][0].test(s || "")) return SERVICE[i][1]; return null; }
+    // Tjenestens rigtige logo fra appen på TV'et
+    function svcIcon(service) {
+      var k = serviceKey(service); if (!k) return "";
+      var a = C.apps.filter(function (x) { return x.key === k; })[0], f = a && findInfo(a), src = f && f.iconPath;
+      if (!src) return "";
+      if (src.indexOf("://") < 0) src = "file://" + src;
+      return '<img class="jv-ic" src="' + src + '" alt="" onerror="this.remove()">';
+    }
     function renderCards() {
       var c = el.querySelector("#jv-cards");
       for (var i = 0; i < c.children.length; i++) c.children[i].classList.toggle("sel", i === sel);
@@ -461,10 +469,10 @@
         var card = document.createElement("div"); card.className = "jv-card";
         card.innerHTML = '<div class="jv-poster"><img alt=""><span>' + esc(it.title) + '</span></div>' +
           '<div class="jv-t">' + esc(it.title) + (it.year ? ' <em>' + esc(it.year) + '</em>' : "") + '</div>' +
-          '<div class="jv-s">' + esc(it.service || "") + '</div><div class="jv-w">' + esc(it.why || "") + '</div>';
+          '<div class="jv-s">' + svcIcon(it.service) + esc(it.service || "") + '</div><div class="jv-w">' + esc(it.why || "") + '</div>';
         c.appendChild(card);
         var img = card.querySelector("img"); img.onload = function () { card.classList.add("has-img"); };
-        poster(it.title, +it.year || 0, img);
+        if (it.poster) img.src = it.poster; else poster(it.title, +it.year || 0, img);
       });
       renderCards();
       el.querySelector("#jv-hint").textContent = items.length ? "← → vælg · OK åbn · Tilbage luk" : "Tryk på en vilkårlig knap for at lukke";
