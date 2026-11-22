@@ -518,7 +518,17 @@ var RC = (function () {
       me = ws = new WebSocket("wss://" + ip + ":8002/api/v2/channels/samsung.remote.control?name=" + NAME + (tok ? "&token=" + tok : ""));
     } catch (e) { return fail(); }
     clearTimeout(pendingTimer);
-    pendingTimer = setTimeout(function () { if (state === "wait") ui("wait", "Tryk “Tillad” på TV'et…"); }, 2500);
+    pendingTimer = setTimeout(function () {
+      if (state !== "wait" || me !== ws) return;
+      ui("wait", "Venter på TV'et – tjek om der er en “Tillad”-boks");
+      // Svarer TV'et slet ikke, giver vi op og viser opsætningen
+      pendingTimer = setTimeout(function () {
+        if (state !== "wait" || me !== ws) return;
+        ws = null; try { me.close(); } catch (e) {}
+        ui("off", "Kunne ikke forbinde – tryk her");
+        $("#setup").classList.add("on");
+      }, 6000);
+    }, 2500);
     me.onmessage = function (ev) {
       var m; try { m = JSON.parse(ev.data); } catch (e) { return; }
       if (m.event === "ms.channel.connect") {
@@ -575,10 +585,10 @@ var RC = (function () {
   // Dansk taltastatur har komma i stedet for punktum
   $("#ip").addEventListener("input", function () { var v = this.value.replace(/,/g, "."); if (v !== this.value) this.value = v; });
   $("#hdmi").value = get("hdmi") || "";
+  // Linjen øverst åbner/lukker altid opsætningen – og prøver at forbinde, hvis vi ikke er forbundet
   $("#conn").onclick = function () {
-    if (state === "on") return $("#setup").classList.toggle("on");
-    if (!get("tvip")) return $("#setup").classList.toggle("on");
-    connect();
+    var open = $("#setup").classList.toggle("on");
+    if (open && state === "off" && get("tvip")) connect();
   };
   function saveIp() {
     var ip = $("#ip").value.trim().replace(/[,\s]+/g, "."); $("#ip").value = ip; if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(ip)) { toast("Skriv en IP som 192.168.1.50"); return null; }
