@@ -143,7 +143,10 @@
   #indst { overflow-y:auto; gap:10px; padding-bottom:20px; }
   #indst h2 { font-size:15px; margin:6px 2px 0; color:var(--mut); font-weight:700; letter-spacing:.5px; }
   #indst .lbl { display:flex; flex-direction:column; gap:6px; color:#fff; font-weight:600; }
-  #indst .chk { display:flex; align-items:center; gap:10px; color:#fff; }
+  #indst { overflow-x:hidden; }
+  #indst .chk { display:flex; align-items:center; gap:12px; color:#fff; line-height:1.3; }
+  #indst .chk input[type=checkbox] { flex:none; width:22px; height:22px; margin:0; padding:0; accent-color:#7c8cff; }
+  #indst .lbl input, #indst .lbl select { width:100%; box-sizing:border-box; }
   #indst select { width:100%; padding:12px 14px; border-radius:12px; border:1px solid var(--line); background:rgba(0,0,0,.25); color:#fff; font-size:16px; font-family:inherit; }
   .tabs button[data-tab="indst"] { flex:0 0 46px; }
   #jarvis { gap:10px; }
@@ -193,7 +196,7 @@
 </style>
 </head>
 <body>
-  <header><h1>TV Hjem <small style="font-size:11px;opacity:.45;font-weight:500">v51</small></h1><span class="pill" id="status">● Klar</span></header>
+  <header><h1>TV Hjem <small style="font-size:11px;opacity:.45;font-weight:500">v52</small></h1><span class="pill" id="status">● Klar</span></header>
 
   <div class="tabs">
     <button data-tab="fjern" class="on">Fjernb.</button>
@@ -670,7 +673,7 @@ var RC = (function () {
 
 // ---------- Automatisk opdatering: tjek om der er kommet en ny version ----------
 (function () {
-  var MINE = "51", last = 0;
+  var MINE = "52", last = 0;
   function check() {
     if (Date.now() - last < 60000) return; last = Date.now();
     fetch("version.txt?t=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.ok ? r.text() : ""; }).then(function (v) {
