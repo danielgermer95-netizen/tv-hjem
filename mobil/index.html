@@ -244,8 +244,8 @@
       <img id="photoPrev" alt="">
       <button class="tool" id="photoDel" aria-label="Fjern billede">✕</button>
     </div>
-    <textarea id="txt" maxlength="140" placeholder="Skriv en besked…"></textarea>
-    <label class="ghost pick">📷 Vælg et billede<input type="file" id="file" accept="image/*" hidden></label>
+    <textarea id="txt" maxlength="400" placeholder="Skriv en besked – eller indsæt et GIF-link fra GIPHY…"></textarea>
+    <label class="ghost pick">📷 Vælg billede eller GIF<input type="file" id="file" accept="image/*" hidden></label>
     <div class="quick" id="quick"></div>
     <button class="send" id="sendTxt">Send til TV</button>
   </div>
@@ -360,10 +360,20 @@ $("#sendDraw").onclick = function () {
   var b = document.createElement("button"); b.textContent = q; b.onclick = function () { $("#txt").value = q; }; $("#quick").appendChild(b);
 });
 // ---------- Billeder fra kamerarullen ----------
-var photoBlob = null;
+var photoBlob = null, photoName = "foto.jpg";
 $("#file").onchange = function () {
   var f = this.files && this.files[0]; this.value = "";
   if (!f) return;
+  // GIF'er sendes uændret, så animationen bevares
+  if (f.type === "image/gif") {
+    if (f.size > 8 * 1024 * 1024) return toast("GIF'en er for stor (max 8 MB)");
+    photoBlob = f; photoName = "anim.gif";
+    $("#photoPrev").src = URL.createObjectURL(f);
+    $("#photo").classList.add("on");
+    $("#txt").placeholder = "Tilføj en tekst (valgfrit)…";
+    return;
+  }
+  photoName = "foto.jpg";
   var url = URL.createObjectURL(f), img = new Image();
   img.onload = function () {
     // Gør billedet mindre (max 1280 px), så det sendes hurtigt og fylder lidt på TV'et
@@ -381,20 +391,36 @@ $("#file").onchange = function () {
   img.onerror = function () { toast("Kunne ikke læse billedet"); };
   img.src = url;
 };
-function clearPhoto() { photoBlob = null; $("#photo").classList.remove("on"); $("#photoPrev").src = ""; $("#txt").placeholder = "Skriv en besked…"; }
+function clearPhoto() { photoBlob = null; $("#photo").classList.remove("on"); $("#photoPrev").src = ""; $("#txt").placeholder = "Skriv en besked – eller indsæt et GIF-link fra GIPHY…"; }
 $("#photoDel").onclick = clearPhoto;
+// Laver et GIPHY-delingslink om til selve GIF-filen
+function gifUrl(t) {
+  if (!/^https?:\/\/\S+$/.test(t)) return null;
+  if (/\.gif(\?|$)/i.test(t)) return t;
+  var m = t.match(/giphy\.com\/(?:gifs|stickers)\/(?:[\w-]*-)?(\w+)\/?(\?|$)/i) || t.match(/gph\.is\/g\/(\w+)/i) || t.match(/media\d*\.giphy\.com\/media\/(?:v1\.[^/]+\/)?(\w+)/i);
+  if (m) return "https://media.giphy.com/media/" + m[1] + "/giphy.gif";
+  return null;
+}
 
 $("#sendTxt").onclick = function () {
   var t = $("#txt").value.trim();
   if (photoBlob) {
     // Teksten sendes med i adressen, så æ/ø/å og emojis kommer rigtigt igennem
-    var url = NTFY + "?title=photo&filename=foto.jpg" + (t ? "&message=" + encodeURIComponent(t) : "");
+    var url = NTFY + "?title=photo&filename=" + photoName + (t ? "&message=" + encodeURIComponent(t) : "");
     status(true, "Sender billede…");
     return fetch(url, { method: "PUT", body: photoBlob })
       .then(function (r) { if (!r.ok) throw new Error(r.status); status(true, "Sendt"); toast("Billedet er sendt til TV'et 📷"); clearPhoto(); $("#txt").value = ""; })
       .catch(function (e) { status(false, "Fejl"); toast("Kunne ikke sende billedet (" + e.message + ")"); });
   }
   if (!t) return toast("Skriv noget eller vælg et billede");
+  // Et GIF-link (GIPHY, Tenor-direkte link, .gif) vises som billede på TV'et
+  var gif = gifUrl(t);
+  if (gif) {
+    status(true, "Sender GIF…");
+    return fetch(NTFY + "?title=photo&attach=" + encodeURIComponent(gif) + "&filename=anim.gif", { method: "POST", body: "GIF" })
+      .then(function (r) { if (!r.ok) throw new Error(r.status); status(true, "Sendt"); toast("GIF'en er sendt til TV'et 🎞️"); $("#txt").value = ""; })
+      .catch(function (e) { status(false, "Fejl"); toast("Kunne ikke sende GIF'en (" + e.message + ")"); });
+  }
   post(t).then(function () { toast("Sendt til TV'et 💬"); $("#txt").value = ""; });
 };
 

@@ -312,14 +312,22 @@
       return;
     }
     if (m.attachment && m.attachment.url) {
-      // Gem billedet lokalt – ntfy sletter vedhæftninger efter nogle timer
+      var cap = (m.title === "note" || /^You received a file/.test(m.message || "") || m.message === "GIF") ? "" : (m.message || "");
+      var show = function (src, keep) {
+        var n = { img: src, text: cap, t: m.time * 1000 };
+        showNote(n);
+        // Gem til næste opstart. Store GIF'er kan være for store til at gemme – så gemmes linket i stedet.
+        try { store("note", keep ? n : { img: m.attachment.url, text: cap, t: n.t }); } catch (e) {}
+      };
       var x = new XMLHttpRequest();
       x.open("GET", m.attachment.url); x.responseType = "blob";
       x.onload = function () {
+        if (x.status !== 200 || !x.response) return show(m.attachment.url, false);
         var r = new FileReader();
-        r.onload = function () { var n = { img: r.result, text: (m.title === "note" || /^You received a file/.test(m.message || "")) ? "" : (m.message || ""), t: m.time * 1000 }; store("note", n); showNote(n); };
+        r.onload = function () { show(r.result, r.result.length < 2500000); };
         r.readAsDataURL(x.response);
       };
+      x.onerror = function () { show(m.attachment.url, false); };
       x.send();
       return;
     }
