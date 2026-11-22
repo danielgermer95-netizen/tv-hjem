@@ -213,6 +213,7 @@
       if (a.hdmi) return;
       if (!findApp(a)) return tiles[i].classList.add("missing");
       // Brug appens rigtige ikon fra TV'et
+      if (a.ikon === false || a.key === "youtube") return; // YouTube giver et standard-Tizen-ikon
       var info = findInfo(a), src = info && info.iconPath;
       if (!src) return;
       if (src.indexOf("://") < 0) src = "file://" + src;
@@ -316,7 +317,7 @@
       x.open("GET", m.attachment.url); x.responseType = "blob";
       x.onload = function () {
         var r = new FileReader();
-        r.onload = function () { var n = { img: r.result, text: m.title === "note" ? "" : (m.message || ""), t: m.time * 1000 }; store("note", n); showNote(n); };
+        r.onload = function () { var n = { img: r.result, text: (m.title === "note" || /^You received a file/.test(m.message || "")) ? "" : (m.message || ""), t: m.time * 1000 }; store("note", n); showNote(n); };
         r.readAsDataURL(x.response);
       };
       x.send();

@@ -29,7 +29,7 @@ window.TV_CONFIG = {
     { key: "viaplay",   navn: "Viaplay",     match: /viaplay/i,                 id: null },
     { key: "skyshow",   navn: "SkyShowtime", match: /sky\s?show\s?time/i,       id: null },
     { key: "appletv",   navn: "Apple TV",    match: /apple\s?tv/i,              id: "3201807016597" },
-    { key: "youtube",   navn: "YouTube",     match: /^youtube$/i,               id: "111299001912" },
+    { key: "youtube",   navn: "YouTube",     match: /^youtube$/i,               id: "111299001912", ikon: false },
     { key: "spotify",   navn: "Spotify",     match: /spotify/i,                 id: "3201606009684" },
     { key: "playstation", navn: "PlayStation", hdmi: true }
   ]

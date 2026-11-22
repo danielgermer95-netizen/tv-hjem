@@ -89,6 +89,12 @@
   .setup .btns button { flex:1; padding:12px; border-radius:12px; border:0; font-weight:700; font-size:15px; font-family:inherit; color:#fff; background:rgba(255,255,255,.14); }
   .setup .btns button.pri { background:linear-gradient(135deg,#8b7cff,#5b8cff); }
   .setup ol { padding-left:18px; }
+  .photo { display:none; position:relative; flex:1; min-height:0; margin-bottom:12px; border-radius:22px; overflow:hidden; border:1px solid var(--line); background:#000; }
+  .photo.on { display:block; }
+  .photo img { width:100%; height:100%; object-fit:contain; display:block; }
+  .photo .tool { position:absolute; top:10px; right:10px; background:rgba(0,0,0,.55); }
+  .photo.on + textarea { flex:none; min-height:70px; font-size:19px; }
+  .pick { display:block; text-align:center; margin-top:12px; }
   .numpad { display:none; flex:none; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
   .numpad.on { display:grid; }
   .numpad button { height:min(52px,6vh); border-radius:16px; border:1px solid var(--line); background:var(--card); color:#fff; font-size:22px; font-weight:600; font-family:inherit; user-select:none; -webkit-user-select:none; }
@@ -105,7 +111,7 @@
     <button data-tab="fjern" class="on">Fjernb.</button>
     <button data-tab="apps">Apps</button>
     <button data-tab="tegn">Tegn</button>
-    <button data-tab="skriv">Skriv</button>
+    <button data-tab="skriv">Besked</button>
   </div>
 
   <section class="panel on" id="fjern">
@@ -176,7 +182,12 @@
   </section>
 
   <section class="panel" id="skriv">
+    <div class="photo" id="photo">
+      <img id="photoPrev" alt="">
+      <button class="tool" id="photoDel" aria-label="Fjern billede">✕</button>
+    </div>
     <textarea id="txt" maxlength="140" placeholder="Skriv en besked…"></textarea>
+    <label class="ghost pick">📷 Vælg et billede<input type="file" id="file" accept="image/*" hidden></label>
     <div class="quick" id="quick"></div>
     <button class="send" id="sendTxt">Send til TV</button>
   </section>
@@ -280,8 +291,42 @@ $("#sendDraw").onclick = function () {
 ["Aftensmaden er klar 🍝", "Elsker dig ❤️", "Film i aften? 🍿", "Husk at tømme opvaskeren", "Godnat 🌙"].forEach(function (q) {
   var b = document.createElement("button"); b.textContent = q; b.onclick = function () { $("#txt").value = q; }; $("#quick").appendChild(b);
 });
+// ---------- Billeder fra kamerarullen ----------
+var photoBlob = null;
+$("#file").onchange = function () {
+  var f = this.files && this.files[0]; this.value = "";
+  if (!f) return;
+  var url = URL.createObjectURL(f), img = new Image();
+  img.onload = function () {
+    // Gør billedet mindre (max 1280 px), så det sendes hurtigt og fylder lidt på TV'et
+    var max = 1280, sc = Math.min(1, max / Math.max(img.width, img.height));
+    var c = document.createElement("canvas"); c.width = Math.round(img.width * sc); c.height = Math.round(img.height * sc);
+    c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+    URL.revokeObjectURL(url);
+    c.toBlob(function (b) {
+      photoBlob = b;
+      $("#photoPrev").src = URL.createObjectURL(b);
+      $("#photo").classList.add("on");
+      $("#txt").placeholder = "Tilføj en tekst (valgfrit)…";
+    }, "image/jpeg", 0.82);
+  };
+  img.onerror = function () { toast("Kunne ikke læse billedet"); };
+  img.src = url;
+};
+function clearPhoto() { photoBlob = null; $("#photo").classList.remove("on"); $("#photoPrev").src = ""; $("#txt").placeholder = "Skriv en besked…"; }
+$("#photoDel").onclick = clearPhoto;
+
 $("#sendTxt").onclick = function () {
-  var t = $("#txt").value.trim(); if (!t) return toast("Skriv noget først");
+  var t = $("#txt").value.trim();
+  if (photoBlob) {
+    // Teksten sendes med i adressen, så æ/ø/å og emojis kommer rigtigt igennem
+    var url = NTFY + "?title=photo&filename=foto.jpg" + (t ? "&message=" + encodeURIComponent(t) : "");
+    status(true, "Sender billede…");
+    return fetch(url, { method: "PUT", body: photoBlob })
+      .then(function (r) { if (!r.ok) throw new Error(r.status); status(true, "Sendt"); toast("Billedet er sendt til TV'et 📷"); clearPhoto(); $("#txt").value = ""; })
+      .catch(function (e) { status(false, "Fejl"); toast("Kunne ikke sende billedet (" + e.message + ")"); });
+  }
+  if (!t) return toast("Skriv noget eller vælg et billede");
   post(t).then(function () { toast("Sendt til TV'et 💬"); $("#txt").value = ""; });
 };
 
