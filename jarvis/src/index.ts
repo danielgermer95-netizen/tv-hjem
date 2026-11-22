@@ -88,12 +88,17 @@ export default {
       return json({ error: "Ikke tilladt" }, 401, origin);
     }
 
-    let body: { messages?: unknown[] };
+    let body: { messages?: unknown[]; tools?: unknown[]; context?: string };
     try { body = await req.json(); } catch { return json({ error: "Ugyldig JSON" }, 400, origin); }
     const messages = body.messages;
     if (!Array.isArray(messages) || messages.length === 0 || messages.length > 60) {
       return json({ error: "Ugyldige beskeder" }, 400, origin);
     }
+
+    // Appen kan selv sende sine værktøjer og en kort kontekst med, så nye evner
+    // ikke kræver, at serveren opdateres
+    const tools = Array.isArray(body.tools) && body.tools.length > 0 && body.tools.length <= 20 ? body.tools : TOOLS;
+    const system = SYSTEM + (typeof body.context === "string" && body.context ? "\n\n" + body.context.slice(0, 3000) : "");
 
     const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
     try {
@@ -105,8 +110,8 @@ export default {
         // Hvis modellen afviser en forespørgsel, prøver API'et selv en anden model
         betas: ["server-side-fallback-2026-07-01"],
         fallbacks: "default",
-        system: SYSTEM,
-        tools: TOOLS,
+        system,
+        tools,
         messages,
       };
       // "fallbacks" er nyere end nogle SDK-typer, derfor cast

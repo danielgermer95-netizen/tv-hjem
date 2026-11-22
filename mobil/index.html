@@ -171,7 +171,7 @@
 </style>
 </head>
 <body>
-  <header><h1>TV Hjem <small style="font-size:11px;opacity:.45;font-weight:500">v34</small></h1><span class="pill" id="status">● Klar</span></header>
+  <header><h1>TV Hjem <small style="font-size:11px;opacity:.45;font-weight:500">v35</small></h1><span class="pill" id="status">● Klar</span></header>
 
   <div class="tabs">
     <button data-tab="fjern" class="on">Fjernb.</button>
@@ -615,7 +615,31 @@ var RC = (function () {
 
 // ---------- Jarvis ----------
 (function () {
-  var hist = [], busy = false;
+  var hist = [], busy = false, lastAct = "", pendingShow = null;
+  var APPS_K = ["drtv","tv2play","netflix","hbomax","prime","disney","viaplay","skyshow","appletv","youtube","spotify","playstation","hjem"];
+  var KEYS_K = ["KEY_VOLUP","KEY_VOLDOWN","KEY_MUTE","KEY_CHUP","KEY_CHDOWN","KEY_UP","KEY_DOWN","KEY_LEFT","KEY_RIGHT","KEY_ENTER","KEY_RETURN",
+    "KEY_HOME","KEY_MENU","KEY_SOURCE","KEY_PLAY_BACK","KEY_POWER","KEY_0","KEY_1","KEY_2","KEY_3","KEY_4","KEY_5","KEY_6","KEY_7","KEY_8","KEY_9"];
+  function obj(props, req) { return { type: "object", properties: props, required: req, additionalProperties: false }; }
+  // Værktøjerne sendes med til serveren, så nye evner ikke kræver at serveren opdateres
+  var TOOLS = [
+    { name: "open_app", strict: true, description: "Åbner en app på stue-TV'et. 'hjem' er familiens egen startskærm. 'playstation' skifter til PS5.",
+      input_schema: obj({ app: { type: "string", enum: APPS_K } }, ["app"]) },
+    { name: "press_keys", strict: true, description: "Sender tastetryk som fra fjernbetjeningen. Gentag en tast for flere trin (fx 5 × KEY_VOLUP).",
+      input_schema: obj({ keys: { type: "array", items: { type: "string", enum: KEYS_K } } }, ["keys"]) },
+    { name: "send_tv_message", strict: true, description: "Viser en kort tekstbesked i beskedfeltet på TV'ets Hjem-skærm.",
+      input_schema: obj({ text: { type: "string" } }, ["text"]) },
+    { name: "show_suggestions", strict: true,
+      description: "Viser 3-6 film- eller serieforslag med plakater stort på TV'et. Brug det altid, når brugeren vil have noget at se. service er den danske streamingtjeneste titlen typisk ligger på (Netflix, HBO Max, Prime Video, Disney+, Viaplay, SkyShowtime, Apple TV, DR TV, TV 2 Play).",
+      input_schema: obj({ heading: { type: "string" }, items: { type: "array", items: obj({
+        title: { type: "string" }, year: { type: "integer" }, service: { type: "string" }, why: { type: "string" } }, ["title", "year", "service", "why"]) } },
+        ["heading", "items"]) }
+  ];
+  function context() {
+    return "Du kan IKKE se TV-skærmen. Navigér derfor ikke blindt rundt i menuer med piletaster; åbn hellere apps direkte og sig ærligt, hvis noget kræver at brugeren selv vælger på skærmen. " +
+      "Når brugeren vil se noget, så brug show_suggestions og nævn kort forslagene; sig at hvilken tjeneste en titel ligger på kan have ændret sig. " +
+      "Tidspunkt nu: " + new Date().toLocaleString("da-DK") + ". " + (lastAct ? "Seneste handling: " + lastAct + "." : "");
+  }
+  function toTV(o) { return post(JSON.stringify(o), { "Title": "jarvis" }).catch(function () {}); }
   function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
   function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
   $("#jurl").value = lsGet("jarvisUrl") || "";
@@ -639,13 +663,20 @@ var RC = (function () {
     if (t.name === "open_app") {
       if (!RC.configured()) return "Fejl: fjernbetjeningen er ikke sat op";
       if (!RC.openApp(inp.app)) return "Fejl: kender ikke app-ID for " + inp.app;
-      say("📺 Åbner " + inp.app, "act"); return "Kommandoen er sendt til TV'et";
+      say("📺 Åbner " + inp.app, "act"); lastAct = "åbnede " + inp.app + " kl. " + new Date().toTimeString().slice(0, 5); return "Kommandoen er sendt til TV'et";
     }
     if (t.name === "press_keys") {
       if (!RC.configured()) return "Fejl: fjernbetjeningen er ikke sat op";
       var keys = (inp.keys || []).slice(0, 30);
       for (var i = 0; i < keys.length; i++) { RC.key(keys[i]); await wait(180); }
       say("🎛️ " + keys.length + " tastetryk", "act"); return "Sendt " + keys.length + " tastetryk";
+    }
+    if (t.name === "show_suggestions") {
+      pendingShow = { heading: String(inp.heading || "").slice(0, 60), items: (inp.items || []).slice(0, 6).map(function (it) {
+        return { title: String(it.title || "").slice(0, 60), year: it.year, service: String(it.service || "").slice(0, 30), why: String(it.why || "").slice(0, 70) }; }) };
+      say("🎬 " + pendingShow.items.map(function (i) { return i.title; }).join(", "), "act");
+      lastAct = "viste forslag på TV'et: " + pendingShow.items.map(function (i) { return i.title; }).join(", ");
+      return "Forslagene vises på TV'et, når du har svaret";
     }
     if (t.name === "send_tv_message") {
       try { await post(String(inp.text || "").slice(0, 300)); say("💬 Besked sendt til TV'et", "act"); return "Beskeden vises på TV'et"; }
@@ -666,16 +697,18 @@ var RC = (function () {
     var url = (lsGet("jarvisUrl") || "").trim();
     if (!url) { say("Jarvis er ikke sat op endnu – indsæt serverens adresse under “Server” nederst.", "err"); return; }
     hist.push({ role: "user", content: text }); trim();
-    var thinking = say("…", "bot");
+    var thinking = say("…", "bot"), finalText = "";
+    pendingShow = null;
+    toTV({ state: "thinking", question: text.slice(0, 200) });
     try {
       for (var round = 0; round < 6; round++) {
         var r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json", "X-Jarvis-Key": KANAL },
-          body: JSON.stringify({ messages: hist }) });
+          body: JSON.stringify({ messages: hist, tools: TOOLS, context: context() }) });
         var d = await r.json().catch(function () { return {}; });
         if (!r.ok) throw new Error(d.error || ("HTTP " + r.status));
         hist.push({ role: "assistant", content: d.content });
         var txt = (d.content || []).filter(function (b) { return b.type === "text"; }).map(function (b) { return b.text; }).join("\n").trim();
-        if (txt) { if (thinking) { thinking.remove(); thinking = null; } say(txt, "bot"); speak(txt); }
+        if (txt) { finalText = txt; if (thinking) { thinking.remove(); thinking = null; } say(txt, "bot"); speak(txt); }
         if (d.stop_reason === "refusal") { if (thinking) thinking.remove(); say("Det kan jeg desværre ikke hjælpe med.", "bot"); return; }
         if (d.stop_reason !== "tool_use") break;
         var uses = (d.content || []).filter(function (b) { return b.type === "tool_use"; }), results = [];
@@ -686,6 +719,9 @@ var RC = (function () {
         hist.push({ role: "user", content: results });
       }
       if (thinking) { thinking.remove(); say("Færdig.", "bot"); }
+      var show = { state: "answer", text: (finalText || "Færdig.").slice(0, 400) };
+      if (pendingShow) { show.heading = pendingShow.heading; show.items = pendingShow.items; }
+      toTV(show);
     } catch (e) {
       if (thinking) thinking.remove();
       say("Kunne ikke nå Jarvis: " + e.message, "err");

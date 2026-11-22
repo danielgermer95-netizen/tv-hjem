@@ -329,6 +329,7 @@
 
   /* ---------- Fjernbetjening ---------- */
   document.addEventListener("keydown", function (e) {
+    if (JV.open() && JV.key(e.keyCode)) { e.preventDefault(); return; }
     switch (e.keyCode) {
       case 37: setFocus(focus - 1); break;
       case 39: setFocus(focus + 1); break;
@@ -339,6 +340,104 @@
     }
     e.preventDefault();
   });
+
+  /* ---------- Jarvis på TV'et: kugle, svar og forslag med plakater ---------- */
+  var JV = (function () {
+    var el = document.createElement("div"); el.id = "jv"; el.className = "hidden";
+    el.innerHTML = '<canvas id="jv-orb" width="420" height="420"></canvas>' +
+      '<div id="jv-pill"></div><div id="jv-q"></div><div id="jv-text"></div>' +
+      '<div id="jv-head"></div><div id="jv-cards"></div><div id="jv-hint"></div>';
+    $("stage").appendChild(el);
+    var cv = el.querySelector("#jv-orb"), cx = cv.getContext("2d"), raf = 0, t0 = 0, hideT, items = [], sel = 0;
+    // Partikel-kugle
+    var P = [];
+    for (var i = 0; i < 520; i++) {
+      var u = Math.random() * 2 - 1, th = Math.random() * Math.PI * 2, r = Math.sqrt(1 - u * u);
+      P.push([r * Math.cos(th), u, r * Math.sin(th), Math.random()]);
+    }
+    var busy = false;
+    function draw(ts) {
+      if (!t0) t0 = ts;
+      var tt = (ts - t0) / 1000, a = tt * (busy ? 0.9 : 0.35), ca = Math.cos(a), sa = Math.sin(a);
+      var pulse = busy ? 1 + Math.sin(tt * 3) * 0.05 : 1;
+      cx.clearRect(0, 0, 420, 420);
+      for (var i = 0; i < P.length; i++) {
+        var p = P[i], x = p[0] * ca - p[2] * sa, z = p[0] * sa + p[2] * ca, y = p[1];
+        var s = 150 * pulse * (1 + 0.04 * Math.sin(tt * 2 + p[3] * 6)), d = (z + 1.6) / 2.6;
+        cx.fillStyle = "rgba(" + (90 + 80 * d | 0) + "," + (150 + 70 * d | 0) + ",255," + (0.25 + 0.75 * d).toFixed(2) + ")";
+        cx.fillRect(210 + x * s, 210 + y * s, 2.4 * d + 0.6, 2.4 * d + 0.6);
+      }
+      raf = requestAnimationFrame(draw);
+    }
+    function openUI() {
+      el.classList.remove("hidden");
+      if (!raf) raf = requestAnimationFrame(draw);
+    }
+    function close() {
+      el.classList.add("hidden"); cancelAnimationFrame(raf); raf = 0; t0 = 0; clearTimeout(hideT); items = [];
+    }
+    function autoHide(sec) { clearTimeout(hideT); hideT = setTimeout(close, sec * 1000); }
+    function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+    // Plakater fra Apples filmkatalog (ingen nøgle nødvendig)
+    function poster(title, year, img) {
+      var cb = "__jvp" + Math.random().toString(36).slice(2), s = document.createElement("script");
+      window[cb] = function (res) {
+        delete window[cb]; if (s.parentNode) s.parentNode.removeChild(s);
+        var list = (res && res.results) || [], best = null;
+        for (var i = 0; i < list.length; i++) {
+          var y = +(list[i].releaseDate || "").slice(0, 4);
+          if (!best || (year && Math.abs(y - year) < Math.abs(+(best.releaseDate || "").slice(0, 4) - year))) best = list[i];
+        }
+        if (best && best.artworkUrl100) img.src = best.artworkUrl100.replace(/\/\d+x\d+bb\./, "/400x600bb.");
+      };
+      s.src = "https://itunes.apple.com/search?media=movie&country=dk&limit=5&term=" + encodeURIComponent(title) + "&callback=" + cb;
+      s.onerror = function () { delete window[cb]; };
+      document.head.appendChild(s);
+    }
+    var SERVICE = [[/netflix/i, "netflix"], [/hbo|max/i, "hbomax"], [/prime|amazon/i, "prime"], [/disney/i, "disney"],
+      [/viaplay/i, "viaplay"], [/sky\s?show/i, "skyshow"], [/apple/i, "appletv"], [/dr\b|drtv/i, "drtv"], [/tv\s?2/i, "tv2play"], [/youtube/i, "youtube"]];
+    function serviceKey(s) { for (var i = 0; i < SERVICE.length; i++) if (SERVICE[i][0].test(s || "")) return SERVICE[i][1]; return null; }
+    function renderCards() {
+      var c = el.querySelector("#jv-cards");
+      for (var i = 0; i < c.children.length; i++) c.children[i].classList.toggle("sel", i === sel);
+    }
+    function show(d) {
+      openUI();
+      el.className = "st-" + (d.state || "answer");
+      busy = d.state === "thinking";
+      el.querySelector("#jv-pill").textContent = d.state === "thinking" ? "Jarvis tænker…" : "Jarvis";
+      el.querySelector("#jv-q").textContent = d.question ? "“" + d.question + "”" : "";
+      el.querySelector("#jv-text").textContent = d.text || "";
+      el.querySelector("#jv-head").textContent = d.heading || "";
+      var c = el.querySelector("#jv-cards"); c.innerHTML = ""; items = d.items || []; sel = 0;
+      items.slice(0, 6).forEach(function (it) {
+        var card = document.createElement("div"); card.className = "jv-card";
+        card.innerHTML = '<div class="jv-poster"><img alt=""><span>' + esc(it.title) + '</span></div>' +
+          '<div class="jv-t">' + esc(it.title) + (it.year ? ' <em>' + esc(it.year) + '</em>' : "") + '</div>' +
+          '<div class="jv-s">' + esc(it.service || "") + '</div><div class="jv-w">' + esc(it.why || "") + '</div>';
+        c.appendChild(card);
+        var img = card.querySelector("img"); img.onload = function () { card.classList.add("has-img"); };
+        poster(it.title, +it.year || 0, img);
+      });
+      renderCards();
+      el.querySelector("#jv-hint").textContent = items.length ? "← → vælg · OK åbn · Tilbage luk" : "";
+      if (d.state === "thinking") autoHide(40);
+      else autoHide(items.length ? 120 : 15);
+    }
+    function key(code) {
+      if (code === 10009 || code === 8 || code === 27) { close(); return true; }
+      if (!items.length) return false;
+      if (code === 37) { sel = Math.max(0, sel - 1); renderCards(); return true; }
+      if (code === 39) { sel = Math.min(Math.min(items.length, 6) - 1, sel + 1); renderCards(); return true; }
+      if (code === 13) {
+        var k = serviceKey(items[sel].service);
+        if (k) { close(); launch(k); } else toast("Ved ikke hvilken app " + items[sel].title + " ligger på");
+        return true;
+      }
+      return false;
+    }
+    return { show: show, key: key, open: function () { return !el.classList.contains("hidden"); }, close: close };
+  })();
 
   /* ---------- Beskeder fra mobilen (ntfy.sh) ---------- */
   function showNote(n) {
@@ -362,6 +461,11 @@
   function handle(m) {
     if (m.event !== "message") return;
     if (m.title === "apps") return; // Hjems egen app-liste til mobilen – ikke en besked
+    if (m.title === "jarvis") {
+      if (!m.time || Date.now() / 1000 - m.time > 60) return;
+      try { JV.show(JSON.parse(m.message)); } catch (e) {}
+      return;
+    }
     if (m.title === "cmd") {
       // Kun nye kommandoer, mens Hjem er synlig – ellers udføres gamle tryk, når Hjem kommer frem
       if (document.hidden || !m.time || Date.now() / 1000 - m.time > 15) return;
@@ -408,4 +512,11 @@
   });
 
   if (DEMO) showNote({ text: "Pizza i aften? 🍕", t: Date.now() });
+  if (/[?&]jv=/.test(location.search)) JV.show(/jv=think/.test(location.search) ? { state: "thinking", question: "Find en god film til date night" } :
+    { state: "answer", text: "Her er fem bud på en hyggelig date night – alle med god kemi og et strejf af humor.", heading: "Til date night",
+      items: [{ title: "La La Land", year: 2016, service: "Netflix", why: "Musik, kærlighed og flotte billeder" },
+              { title: "Crazy, Stupid, Love", year: 2011, service: "HBO Max", why: "Sjov og varm" },
+              { title: "About Time", year: 2013, service: "Prime Video", why: "Rørende med humor" },
+              { title: "The Proposal", year: 2009, service: "Disney+", why: "Klassisk rom-com" },
+              { title: "Past Lives", year: 2023, service: "Viaplay", why: "Stille og smuk" }] });
 })();
