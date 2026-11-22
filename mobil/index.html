@@ -140,6 +140,12 @@
   .setup .btns button { flex:1; padding:12px; border-radius:12px; border:0; font-weight:700; font-size:15px; font-family:inherit; color:#fff; background:rgba(255,255,255,.14); }
   .setup .btns button.pri { background:linear-gradient(135deg,#8b7cff,#5b8cff); }
   .setup ol { padding-left:18px; }
+  #indst { overflow-y:auto; gap:10px; padding-bottom:20px; }
+  #indst h2 { font-size:15px; margin:6px 2px 0; color:var(--mut); font-weight:700; letter-spacing:.5px; }
+  #indst .lbl { display:flex; flex-direction:column; gap:6px; color:#fff; font-weight:600; }
+  #indst .chk { display:flex; align-items:center; gap:10px; color:#fff; }
+  #indst select { width:100%; padding:12px 14px; border-radius:12px; border:1px solid var(--line); background:rgba(0,0,0,.25); color:#fff; font-size:16px; font-family:inherit; }
+  .tabs button[data-tab="indst"] { flex:0 0 46px; }
   #jarvis { gap:10px; }
   .jvoice { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:22px; text-align:center; min-height:0; }
   .jstatus { font-size:20px; font-weight:700; }
@@ -187,31 +193,19 @@
 </style>
 </head>
 <body>
-  <header><h1>TV Hjem <small style="font-size:11px;opacity:.45;font-weight:500">v48</small></h1><span class="pill" id="status">● Klar</span></header>
+  <header><h1>TV Hjem <small style="font-size:11px;opacity:.45;font-weight:500">v49</small></h1><span class="pill" id="status">● Klar</span></header>
 
   <div class="tabs">
     <button data-tab="fjern" class="on">Fjernb.</button>
     <button data-tab="apps">Apps</button>
     <button data-tab="besked">Besked</button>
     <button data-tab="jarvis">Jarvis</button>
+    <button data-tab="indst" aria-label="Indstillinger">⚙️</button>
   </div>
 
   <section class="panel on" id="fjern">
     <button class="conn" id="conn"><i></i><b id="connTxt">Ikke forbundet</b><span>Opsætning ›</span></button>
 
-    <div class="setup" id="setup">
-      <div>Mobilen taler direkte med TV'et over jeres Wi-Fi. Mobil og TV skal være på <b>samme netværk</b>.</div>
-      <ol>
-        <li>Find TV'ets IP: <i>Indstillinger → Generelt og privatliv → Netværk → Netværksstatus</i>.</li>
-        <li>Skriv IP'en herunder og tryk <b>Godkend TV</b>. Safari advarer om certifikatet – vælg <i>Vis detaljer → besøg dette websted</i>. Kom så tilbage hertil.</li>
-        <li>Tryk <b>Forbind</b> og vælg <b>Tillad</b> på TV-skærmen.</li>
-      </ol>
-      <input id="ip" inputmode="decimal" placeholder="TV'ets IP, fx 192.168.1.50" autocomplete="off">
-      <input id="hdmi" inputmode="numeric" placeholder="PlayStation sidder i HDMI nr. (1-4)" autocomplete="off">
-      <div class="btns"><button id="trust">Godkend TV</button><button class="pri" id="connect">Forbind</button></div>
-      <details id="appsDbg"><summary>TV'ets apps (til fejlfinding)</summary><div id="appsList">Forbind først…</div></details>
-      <details><summary style="color:#fff;font-weight:600">App-ID'er fra Hjem på TV'et</summary><div id="tvAppsList" style="margin-top:8px;font-size:12px;line-height:1.6;word-break:break-all;user-select:text;-webkit-user-select:text">Henter…</div></details>
-    </div>
 
     <div class="r4">
       <button class="rb power" data-key="KEY_POWER"><svg viewBox="0 0 24 24"><path d="M12 3v8M6.3 6.8a8 8 0 1 0 11.4 0"/></svg>Sluk</button>
@@ -288,7 +282,7 @@
       <div class="jstatus" id="jstatus">Tryk og tal til Jarvis</div>
       <button class="jmic" id="jmic" aria-label="Tal til Jarvis"><span></span></button>
       <div class="jheard" id="jheard"></div>
-      <div class="jlast" id="jlast">Tryk én gang – så lytter Jarvis hele tiden, og du kan afbryde ham. Sig “tak” eller tryk igen for at slutte.</div>
+      <div class="jlast" id="jlast">Tryk én gang – så lytter Jarvis, når han ikke selv taler. Tryk mens han taler for at afbryde. Sig “tak” for at slutte.</div>
     </div>
     <div class="jtext" id="jtext">
       <div class="jlog" id="jlog"></div>
@@ -300,13 +294,40 @@
     <div class="jopts">
       <button class="jlink" id="jmode">⌨️ Skriv i stedet</button>
       <button class="jlink" id="jclose">✕ Luk på TV'et</button>
-      <label><input type="checkbox" id="jspeak"> Læs svar højt</label>
-      <label><input type="checkbox" id="jtv"> Stemme fra TV'et</label>
-      <details><summary>Indstillinger</summary>
-        <input id="jurl" placeholder="Jarvis-server (…workers.dev)" autocomplete="off">
-        <input id="jtmdb" placeholder="TMDB-nøgle (API Read Access Token)" autocomplete="off">
-        <select id="jlang"><option value="da">Jarvis svarer på dansk</option><option value="en">Jarvis answers in English</option></select>
-      </details>
+    </div>
+  </section>
+
+  <section class="panel" id="indst">
+    <h2>📺 TV'et</h2>
+    <div class="setup on" id="setup">
+      <div>Mobilen taler direkte med TV'et over jeres Wi-Fi. Mobil og TV skal være på <b>samme netværk</b>.</div>
+      <ol>
+        <li>Find TV'ets IP: <i>Indstillinger → Generelt og privatliv → Netværk → Netværksstatus</i>.</li>
+        <li>Skriv IP'en herunder og tryk <b>Godkend TV</b>. Safari advarer om certifikatet – vælg <i>Vis detaljer → besøg dette websted</i>. Kom så tilbage hertil.</li>
+        <li>Tryk <b>Forbind</b> og vælg <b>Tillad</b> på TV-skærmen.</li>
+      </ol>
+      <input id="ip" inputmode="decimal" placeholder="TV'ets IP, fx 192.168.1.50" autocomplete="off">
+      <input id="hdmi" inputmode="numeric" placeholder="PlayStation sidder i HDMI nr. (1-4)" autocomplete="off">
+      <div class="btns"><button id="trust">Godkend TV</button><button class="pri" id="connect">Forbind</button></div>
+      <details id="appsDbg"><summary>TV'ets apps (til fejlfinding)</summary><div id="appsList">Forbind først…</div></details>
+      <details><summary style="color:#fff;font-weight:600">App-ID'er fra Hjem på TV'et</summary><div id="tvAppsList" style="margin-top:8px;font-size:12px;line-height:1.6;word-break:break-all;user-select:text;-webkit-user-select:text">Henter…</div></details>
+    </div>
+
+    <h2>🤖 Jarvis</h2>
+    <div class="setup on">
+      <label class="lbl">Jarvis-server<input id="jurl" placeholder="https://tv-hjem-jarvis.xxx.workers.dev" autocomplete="off"></label>
+      <label class="lbl">Sprog
+        <select id="jlang"><option value="da">Jarvis svarer på dansk</option><option value="en">Jarvis answers in English</option></select></label>
+      <label class="lbl">Hjerne (model)
+        <select id="jmodel">
+          <option value="claude-opus-5-5">Claude Opus 5.5 – klogest, langsomst</option>
+          <option value="claude-sonnet-5-5">Claude Sonnet 5.5 – mellem</option>
+          <option value="claude-haiku-5-5">Claude Haiku 5.5 – hurtigst</option>
+        </select></label>
+      <label class="chk"><input type="checkbox" id="jspeak"> Læs svar højt</label>
+      <label class="chk"><input type="checkbox" id="jtv"> Stemmen kommer fra TV'et</label>
+      <label class="chk"><input type="checkbox" id="jfast"> Hurtig stemme (ElevenLabs Flash)</label>
+      <label class="lbl">TMDB-nøgle (valgfri – ligger normalt på serveren)<input id="jtmdb" placeholder="API Read Access Token" autocomplete="off"></label>
     </div>
   </section>
 
@@ -529,7 +550,6 @@ var RC = (function () {
       if (m.event === "ms.channel.connect") {
         if (m.data && m.data.token) set("tvtoken", m.data.token);
         ui("on", "Forbundet til TV'et");
-        $("#setup").classList.remove("on");
         raw({ method: "ms.channel.emit", params: { event: "ed.installedApp.get", to: "host" } });
         while (queue.length) ws.send(queue.shift());
         runAction();
@@ -590,8 +610,8 @@ var RC = (function () {
   $("#ip").addEventListener("input", function () { var v = this.value.replace(/,/g, "."); if (v !== this.value) this.value = v; });
   $("#hdmi").value = get("hdmi") || "";
   $("#conn").onclick = function () {
-    var open = $("#setup").classList.toggle("on");
-    if (open && state === "off" && get("tvip")) connect();
+    if (state === "off" && get("tvip")) connect();
+    document.querySelector('.tabs button[data-tab="indst"]').click();
   };
   function saveIp() {
     var ip = $("#ip").value.trim().replace(/[,\s]+/g, "."); $("#ip").value = ip; if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(ip)) { toast("Skriv en IP som 192.168.1.50"); return null; }
@@ -649,7 +669,7 @@ var RC = (function () {
 
 // ---------- Automatisk opdatering: tjek om der er kommet en ny version ----------
 (function () {
-  var MINE = "48", last = 0;
+  var MINE = "49", last = 0;
   function check() {
     if (Date.now() - last < 60000) return; last = Date.now();
     fetch("version.txt?t=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.ok ? r.text() : ""; }).then(function (v) {
@@ -749,6 +769,10 @@ var RC = (function () {
   function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
   $("#jurl").value = lsGet("jarvisUrl") || "";
   $("#jurl").onchange = function () { lsSet("jarvisUrl", this.value.trim()); };
+  $("#jmodel").value = lsGet("jarvisModel") || "claude-opus-5-5";
+  $("#jmodel").onchange = function () { lsSet("jarvisModel", this.value); hist = []; };
+  $("#jfast").checked = lsGet("jarvisFast") === "1";
+  $("#jfast").onchange = function () { lsSet("jarvisFast", this.checked ? "1" : "0"); };
   $("#jlang").value = lsGet("jarvisLang") || "da";
   $("#jlang").onchange = function () { lsSet("jarvisLang", this.value); hist = []; };
   $("#jtmdb").value = lsGet("tmdbKey") || "";
@@ -767,8 +791,14 @@ var RC = (function () {
   var speaking = null;
   function speak(text) {
     if (!$("#jspeak").checked) return;
-    sayText = text; sayUntil = Date.now() + 2500 + text.length * 75;
-    if (tvVoice()) return;
+    sayText = text;
+    if (tvVoice()) {
+      // Vent på TV'ets signal om, hvornår det taler. Kommer det ikke, så lyt igen efter lidt tid.
+      sayUntil = Date.now() + 12000; tvStarted = false;
+      clearTimeout(tvWaitT); tvWaitT = setTimeout(function () { if (!tvStarted) sayUntil = Date.now(); }, 9000);
+      return;
+    }
+    sayUntil = Date.now() + 2500 + text.length * 75;
     if (!window.speechSynthesis) return;
     var u = new SpeechSynthesisUtterance(text); u.lang = (lsGet("jarvisLang") || "da") === "en" ? "en-GB" : "da-DK"; speechSynthesis.cancel();
     speaking = new Promise(function (res) {
@@ -834,7 +864,7 @@ var RC = (function () {
     try {
       for (var round = 0; round < 6; round++) {
         var r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json", "X-Jarvis-Key": KANAL },
-          body: JSON.stringify({ messages: hist, tools: TOOLS, context: context() }) });
+          body: JSON.stringify({ messages: hist, tools: TOOLS, context: context(), model: lsGet("jarvisModel") || "claude-opus-5-5" }) });
         var d = await r.json().catch(function () { return {}; });
         if (!r.ok) throw new Error(d.error || ("HTTP " + r.status));
         hist.push({ role: "assistant", content: d.content });
@@ -851,7 +881,7 @@ var RC = (function () {
       }
       if (thinking) { thinking.remove(); say("Færdig.", "bot"); }
       var show = { state: "answer", text: (finalText || "Færdig.").slice(0, 400) };
-      if (tvVoice()) show.tts = (lsGet("jarvisUrl") || "").trim();
+      if (tvVoice()) { show.tts = (lsGet("jarvisUrl") || "").trim(); show.fast = lsGet("jarvisFast") === "1"; }
       if (pendingShow) { show.heading = pendingShow.heading; show.items = pendingShow.items; }
       toTV(show);
     } catch (e) {
@@ -873,11 +903,22 @@ var RC = (function () {
   function status() {
     if (!live) return setMic("", "Tryk og tal til Jarvis");
     if (busy) return setMic("think live", "Tænker… (du kan bare tale)");
-    if (jSaying()) return setMic("listen", "Jarvis taler – afbryd bare");
+    if (jSaying()) return setMic("think live", "Jarvis taler – tryk for at afbryde");
     setMic("listen", "Jeg lytter…");
   }
   // Hvad siger Jarvis lige nu? (bruges til at sortere hans egen stemme fra)
-  var sayText = "", sayUntil = 0;
+  var sayText = "", sayUntil = 0, tvStarted = false, tvWaitT = null, tvES = null;
+  // TV'et sender "start:<sek>" og "end", når det taler (se tv-app)
+  function listenTV() {
+    if (tvES || typeof EventSource === "undefined") return;
+    tvES = new EventSource(NTFY + "/sse");
+    tvES.onmessage = function (ev) {
+      var m; try { m = JSON.parse(ev.data); } catch (e) { return; }
+      if (m.title !== "tvaudio" || !m.message) return;
+      if (m.message.indexOf("start") === 0) { tvStarted = true; sayUntil = Date.now() + (+m.message.split(":")[1] || 8) * 1000 + 400; }
+      else if (m.message === "end") sayUntil = Math.min(sayUntil, Date.now() + 500);
+    };
+  }
   function jSaying() { return Date.now() < sayUntil; }
   function words(t) { return (t || "").toLowerCase().replace(/[^a-zæøå0-9 ]/g, " ").split(/\s+/).filter(Boolean); }
   function isEcho(t) {
@@ -898,9 +939,11 @@ var RC = (function () {
     setMic("", msg || "Tryk og tal til Jarvis");
   }
   function tapMic() {
+    if (live && jSaying()) { stopTalking(); return status(); }   // afbryd Jarvis
     if (live) return endLive("Samtalen er slut – tryk for at tale igen");
     unlockSpeech();
     if (!SR) return typeFallback("Tale virker ikke her");
+    listenTV();
     live = true; errs = 0; toTV({ state: "listening" }); startRec(); status();
   }
   function startRec() {
@@ -908,6 +951,8 @@ var RC = (function () {
     rec = new SR(); rec.lang = "da-DK"; rec.interimResults = true; rec.continuous = true; lastFinalIdx = 0;
     rec.onresult = function (e) {
       errs = 0;
+      // Mens Jarvis taler, lytter vi ikke (ellers hører telefonen hans stemme fra TV'et)
+      if (jSaying()) { buf = ""; clearTimeout(commitT); $("#jheard").textContent = ""; return; }
       var fin = "", interim = "";
       for (var i = e.resultIndex; i < e.results.length; i++) {
         var seg = e.results[i][0].transcript;
@@ -919,11 +964,9 @@ var RC = (function () {
       var shown = (buf + interim).trim();
       if (!shown) return;
       $("#jheard").textContent = "“" + shown + "”";
-      // Du taler, mens Jarvis taler: stop ham
-      if (jSaying() && words(shown).length >= 2) stopTalking();
       // Når du holder en kort pause, sendes det, du har sagt
       clearTimeout(commitT);
-      commitT = setTimeout(function () { commit((buf + interim).trim()); }, fin && !interim ? 700 : 1300);
+      commitT = setTimeout(function () { commit((buf + interim).trim()); }, fin && !interim ? 550 : 1000);
     };
     rec.onerror = function (e) {
       if (e.error === "not-allowed" || e.error === "service-not-allowed") { endLive(); return typeFallback("Giv adgang til mikrofonen"); }

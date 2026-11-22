@@ -250,7 +250,7 @@
   loadWeather(); setInterval(loadWeather, 15 * 60 * 1000);
 
   /* ---------- Automatisk opdatering: genindlæs når der er en ny version på GitHub ---------- */
-  var APP_VERSION = "48";
+  var APP_VERSION = "49";
   function checkVersion() {
     if (DEMO || location.protocol === "file:") return;
     var x = new XMLHttpRequest();
@@ -463,18 +463,25 @@
     }
     // Jarvis' stemme: hent mp3 fra Jarvis-serveren og afspil den i TV'ets højttalere
     var audio = null;
-    function sayAloud(url, text) {
+    // Fortæl mobilen, hvornår TV'et taler, så den ikke lytter til Jarvis' egen stemme
+    function tellPhone(msg) {
+      try { var x = new XMLHttpRequest(); x.open("POST", "https://ntfy.sh/" + encodeURIComponent(C.kanal)); x.setRequestHeader("Title", "tvaudio"); x.send(msg); } catch (e) {}
+    }
+    function sayAloud(url, text, fast) {
       if (!url || !text) return;
       try { if (audio) { audio.pause(); audio = null; } } catch (e) {}
       var x = new XMLHttpRequest();
       x.open("POST", url); x.responseType = "blob";
       x.setRequestHeader("Content-Type", "application/json"); x.setRequestHeader("X-Jarvis-Key", C.kanal);
       x.onload = function () {
-        if (x.status !== 200) return;
-        audio = new Audio(URL.createObjectURL(x.response));
-        var pr = audio.play(); if (pr && pr.catch) pr.catch(function () {});
+        if (x.status !== 200) return tellPhone("end");
+        var a = audio = new Audio(URL.createObjectURL(x.response)), sent = false;
+        a.onplaying = function () { if (!sent) { sent = true; tellPhone("start:" + Math.ceil(a.duration || 8)); } };
+        a.onended = a.onpause = a.onerror = function () { if (a === audio || !audio) tellPhone("end"); };
+        var pr = a.play(); if (pr && pr.catch) pr.catch(function () { tellPhone("end"); });
       };
-      x.send(JSON.stringify({ tts: text }));
+      x.onerror = function () { tellPhone("end"); };
+      x.send(JSON.stringify({ tts: text, fast: !!fast }));
     }
     function show(d) {
       if (d.state === "close") { try { if (audio) audio.pause(); } catch (e) {} return close(); }
@@ -485,7 +492,7 @@
         if (el.classList.contains("hidden")) d = { state: "listening" };
         else { el.querySelector("#jv-pill").textContent = "Lytter…"; busy = false; autoHide(items.length ? 180 : 120); return; }
       }
-      if (d.state === "answer" && d.tts) sayAloud(d.tts, d.text);
+      if (d.state === "answer" && d.tts) sayAloud(d.tts, d.text, d.fast);
       // Er der allerede forslag på skærmen, så lad "klar" ikke skjule dem
       if (d.state === "ready" && items.length && !el.classList.contains("hidden")) return;
       openUI();
@@ -552,6 +559,7 @@
   function handle(m) {
     if (m.event !== "message") return;
     if (m.title === "apps") return; // Hjems egen app-liste til mobilen – ikke en besked
+    if (m.title === "tvaudio") return; // TV'ets egen besked til mobilen
     if (m.title === "jarvis") {
       if (!m.time || Date.now() / 1000 - m.time > 60) return;
       try { JV.show(JSON.parse(m.message)); } catch (e) {}

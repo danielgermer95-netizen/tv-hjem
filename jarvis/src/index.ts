@@ -91,7 +91,7 @@ export default {
       return json({ error: "Ikke tilladt" }, 401, origin);
     }
 
-    let body: { messages?: unknown[]; tools?: unknown[]; context?: string; tmdb?: string; tts?: string };
+    let body: { messages?: unknown[]; tools?: unknown[]; context?: string; tmdb?: string; tts?: string; fast?: boolean; model?: string };
     try { body = await req.json(); } catch { return json({ error: "Ugyldig JSON" }, 400, origin); }
     // Tale: lav Jarvis' svar om til lyd (mp3) med ElevenLabs
     if (typeof body.tts === "string") {
@@ -101,7 +101,8 @@ export default {
       const r = await fetch("https://api.elevenlabs.io/v1/text-to-speech/" + voice + "?output_format=mp3_44100_128", {
         method: "POST",
         headers: { "xi-api-key": env.ELEVENLABS_API_KEY, "Content-Type": "application/json", accept: "audio/mpeg" },
-        body: JSON.stringify({ text, model_id: "eleven_multilingual_v2", voice_settings: { stability: 0.55, similarity_boost: 0.8 } }),
+        // "fast": Flash-modellen svarer meget hurtigere (lidt mindre naturlig)
+        body: JSON.stringify({ text, model_id: body.fast ? "eleven_flash_v2_5" : "eleven_multilingual_v2", voice_settings: { stability: 0.55, similarity_boost: 0.8 } }),
       });
       if (!r.ok) return json({ error: "ElevenLabs svarede " + r.status }, 502, origin);
       return new Response(r.body, { status: 200, headers: { "Content-Type": "audio/mpeg", ...cors(origin) } });
@@ -126,20 +127,24 @@ export default {
     const tools = Array.isArray(body.tools) && body.tools.length > 0 && body.tools.length <= 20 ? body.tools : TOOLS;
     const system = SYSTEM + (typeof body.context === "string" && body.context ? "\n\n" + body.context.slice(0, 3000) : "");
 
+    // Appen kan vælge model (hurtig eller klog) blandt disse
+    const MODELS = ["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"];
+    const model = typeof body.model === "string" && MODELS.includes(body.model) ? body.model : MODEL;
+
     const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
     try {
-      const params = {
-        model: MODEL,
+      const params: Record<string, unknown> = {
+        model,
         max_tokens: 16000,
         // Lav effort: korte, hurtige svar til en stemmeassistent
         output_config: { effort: "low" },
-        // Hvis modellen afviser en forespørgsel, prøver API'et selv en anden model
-        betas: ["server-side-fallback-2026-07-01"],
-        fallbacks: "default",
         system,
         tools,
         messages,
       };
+      // Hvis modellen afviser en forespørgsel, prøver API'et selv en anden model
+      // (findes ikke til Haiku)
+      if (model !== "claude-haiku-5-5") { params.betas = ["server-side-fallback-2026-07-01"]; params.fallbacks = "default"; }
       // "fallbacks" er nyere end nogle SDK-typer, derfor cast
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const msg = await client.beta.messages.create(params as any);
