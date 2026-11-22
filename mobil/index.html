@@ -6,6 +6,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0b1020">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-title" content="TV Hjem">
 <title>TV Hjem</title>
 <style>
   :root { --bg:#0b1020; --card:rgba(255,255,255,.07); --line:rgba(255,255,255,.12); --txt:#fff; --mut:rgba(255,255,255,.6); --acc:#7c8cff; }
@@ -90,7 +93,8 @@
 var KANAL = (function () {
   var m = location.hash.match(/k=([\w-]+)/), k = null;
   try { if (m) localStorage.setItem("kanal", m[1]); k = localStorage.getItem("kanal"); } catch (e) { k = m && m[1]; }
-  if (m) history.replaceState(null, "", location.pathname);
+  // Nøglen bliver i adressen, så ikonet på hjemmeskærmen også kender den
+  if (!m && k) history.replaceState(null, "", location.pathname + "#k=" + k);
   while (!k) { k = (prompt("Indtast kanal-nøgle (står i tv-app/config.js):") || "").trim(); try { localStorage.setItem("kanal", k); } catch (e) {} }
   return k;
 })();
