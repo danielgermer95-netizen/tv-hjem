@@ -140,6 +140,19 @@
   .setup .btns button { flex:1; padding:12px; border-radius:12px; border:0; font-weight:700; font-size:15px; font-family:inherit; color:#fff; background:rgba(255,255,255,.14); }
   .setup .btns button.pri { background:linear-gradient(135deg,#8b7cff,#5b8cff); }
   .setup ol { padding-left:18px; }
+  #jarvis { gap:10px; }
+  .jlog { flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column; gap:8px; padding:4px 2px; }
+  .jmsg { max-width:85%; padding:10px 14px; border-radius:18px; font-size:16px; line-height:1.35; white-space:pre-wrap; }
+  .jmsg.bot { align-self:flex-start; background:var(--card); border:1px solid var(--line); border-bottom-left-radius:6px; }
+  .jmsg.me { align-self:flex-end; background:linear-gradient(135deg,#8b7cff,#5b8cff); border-bottom-right-radius:6px; }
+  .jmsg.act { align-self:flex-start; font-size:13px; color:var(--mut); background:none; padding:2px 6px; }
+  .jmsg.err { align-self:flex-start; color:#ff9a9a; background:rgba(255,90,90,.1); }
+  .jrow { display:flex; gap:8px; }
+  .jrow input { flex:1; min-width:0; padding:14px 16px; border-radius:16px; border:1px solid var(--line); background:var(--card); color:#fff; font-size:17px; font-family:inherit; outline:none; }
+  .jsend { width:52px; border-radius:16px; border:0; background:linear-gradient(135deg,#8b7cff,#5b8cff); color:#fff; font-size:20px; }
+  .jopts { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; font-size:13px; color:var(--mut); }
+  .jopts details { text-align:right; } .jopts summary { cursor:pointer; }
+  .jopts details input { margin-top:6px; width:230px; padding:8px 10px; border-radius:10px; border:1px solid var(--line); background:rgba(0,0,0,.25); color:#fff; font-size:13px; }
   #appsDbg summary { cursor:pointer; color:#fff; font-weight:600; }
   #appsList { margin-top:8px; font-size:12px; line-height:1.6; user-select:text; -webkit-user-select:text; word-break:break-all; }
   .photo { display:none; position:relative; flex:1; min-height:0; margin-bottom:12px; border-radius:22px; overflow:hidden; border:1px solid var(--line); background:#000; }
@@ -158,12 +171,13 @@
 </style>
 </head>
 <body>
-  <header><h1>TV Hjem <small style="font-size:11px;opacity:.45;font-weight:500">v33</small></h1><span class="pill" id="status">● Klar</span></header>
+  <header><h1>TV Hjem <small style="font-size:11px;opacity:.45;font-weight:500">v34</small></h1><span class="pill" id="status">● Klar</span></header>
 
   <div class="tabs">
     <button data-tab="fjern" class="on">Fjernb.</button>
     <button data-tab="apps">Apps</button>
     <button data-tab="besked">Besked</button>
+    <button data-tab="jarvis">Jarvis</button>
   </div>
 
   <section class="panel on" id="fjern">
@@ -251,6 +265,18 @@
     <button class="send" id="sendTxt">Send til TV</button>
   </div>
     <button class="ghost" id="clearNote">Fjern besked fra TV'et</button>
+  </section>
+
+  <section class="panel" id="jarvis">
+    <div class="jlog" id="jlog"><div class="jmsg bot">Hej! Jeg er Jarvis. Bed mig fx om at sætte Netflix på, skrue ned for lyden eller skrive en besked på TV'et. Tryk på 🎤 på tastaturet for at tale.</div></div>
+    <div class="jrow">
+      <input id="jin" placeholder="Spørg Jarvis…" autocomplete="off" enterkeyhint="send">
+      <button class="jsend" id="jsend" aria-label="Send">➤</button>
+    </div>
+    <div class="jopts">
+      <label><input type="checkbox" id="jspeak"> Læs svar højt</label>
+      <details><summary>Server</summary><input id="jurl" placeholder="https://tv-hjem-jarvis.xxx.workers.dev" autocomplete="off"></details>
+    </div>
   </section>
 
   <section class="panel" id="apps">
@@ -578,7 +604,104 @@ var RC = (function () {
   document.addEventListener("visibilitychange", function () { if (!document.hidden && get("tvip") && state !== "on") connect(); });
   if (get("tvip")) connect(); else ui("off", "Ikke forbundet");
 
-  return { key: key, launch: launch, appId: appId, ready: function () { return state === "on"; }, configured: function () { return !!get("tvip"); } };
+  function openApp(k) {
+    if (k === "hjem") { openHjem(); return true; }
+    if (k === "playstation") { key("KEY_HDMI" + (get("hdmi") || "1")); return true; }
+    var id = appId(k); if (!id) return false;
+    launch(id); return true;
+  }
+  return { key: key, launch: launch, appId: appId, openApp: openApp, ready: function () { return state === "on"; }, configured: function () { return !!get("tvip"); } };
+})();
+
+// ---------- Jarvis ----------
+(function () {
+  var hist = [], busy = false;
+  function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  $("#jurl").value = lsGet("jarvisUrl") || "";
+  $("#jurl").onchange = function () { lsSet("jarvisUrl", this.value.trim()); };
+  $("#jspeak").checked = lsGet("jarvisSpeak") === "1";
+  $("#jspeak").onchange = function () { lsSet("jarvisSpeak", this.checked ? "1" : "0"); };
+
+  function say(text, cls) {
+    var d = document.createElement("div"); d.className = "jmsg " + cls; d.textContent = text;
+    $("#jlog").appendChild(d); $("#jlog").scrollTop = 1e9; return d;
+  }
+  function speak(text) {
+    if (!$("#jspeak").checked || !window.speechSynthesis) return;
+    var u = new SpeechSynthesisUtterance(text); u.lang = "da-DK"; speechSynthesis.cancel(); speechSynthesis.speak(u);
+  }
+  function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+  // Udfører Jarvis' værktøjer her på telefonen
+  async function runTool(t) {
+    var inp = t.input || {};
+    if (t.name === "open_app") {
+      if (!RC.configured()) return "Fejl: fjernbetjeningen er ikke sat op";
+      if (!RC.openApp(inp.app)) return "Fejl: kender ikke app-ID for " + inp.app;
+      say("📺 Åbner " + inp.app, "act"); return "Kommandoen er sendt til TV'et";
+    }
+    if (t.name === "press_keys") {
+      if (!RC.configured()) return "Fejl: fjernbetjeningen er ikke sat op";
+      var keys = (inp.keys || []).slice(0, 30);
+      for (var i = 0; i < keys.length; i++) { RC.key(keys[i]); await wait(180); }
+      say("🎛️ " + keys.length + " tastetryk", "act"); return "Sendt " + keys.length + " tastetryk";
+    }
+    if (t.name === "send_tv_message") {
+      try { await post(String(inp.text || "").slice(0, 300)); say("💬 Besked sendt til TV'et", "act"); return "Beskeden vises på TV'et"; }
+      catch (e) { return "Fejl: kunne ikke sende beskeden"; }
+    }
+    return "Fejl: ukendt værktøj";
+  }
+
+  function trim() {
+    // Hold historikken kort, men klip kun ved en almindelig brugerbesked
+    while (hist.length > 30) {
+      hist.shift();
+      while (hist.length && !(hist[0].role === "user" && typeof hist[0].content === "string")) hist.shift();
+    }
+  }
+
+  async function ask(text) {
+    var url = (lsGet("jarvisUrl") || "").trim();
+    if (!url) { say("Jarvis er ikke sat op endnu – indsæt serverens adresse under “Server” nederst.", "err"); return; }
+    hist.push({ role: "user", content: text }); trim();
+    var thinking = say("…", "bot");
+    try {
+      for (var round = 0; round < 6; round++) {
+        var r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json", "X-Jarvis-Key": KANAL },
+          body: JSON.stringify({ messages: hist }) });
+        var d = await r.json().catch(function () { return {}; });
+        if (!r.ok) throw new Error(d.error || ("HTTP " + r.status));
+        hist.push({ role: "assistant", content: d.content });
+        var txt = (d.content || []).filter(function (b) { return b.type === "text"; }).map(function (b) { return b.text; }).join("\n").trim();
+        if (txt) { if (thinking) { thinking.remove(); thinking = null; } say(txt, "bot"); speak(txt); }
+        if (d.stop_reason === "refusal") { if (thinking) thinking.remove(); say("Det kan jeg desværre ikke hjælpe med.", "bot"); return; }
+        if (d.stop_reason !== "tool_use") break;
+        var uses = (d.content || []).filter(function (b) { return b.type === "tool_use"; }), results = [];
+        for (var i = 0; i < uses.length; i++) {
+          var out = await runTool(uses[i]);
+          results.push({ type: "tool_result", tool_use_id: uses[i].id, content: out, is_error: /^Fejl/.test(out) });
+        }
+        hist.push({ role: "user", content: results });
+      }
+      if (thinking) { thinking.remove(); say("Færdig.", "bot"); }
+    } catch (e) {
+      if (thinking) thinking.remove();
+      say("Kunne ikke nå Jarvis: " + e.message, "err");
+      // Fjern den ufuldstændige tur, så næste spørgsmål starter rent
+      while (hist.length && !(hist[hist.length - 1].role === "user" && typeof hist[hist.length - 1].content === "string")) hist.pop();
+      hist.pop();
+    }
+  }
+
+  function send() {
+    var v = $("#jin").value.trim(); if (!v || busy) return;
+    $("#jin").value = ""; say(v, "me"); busy = true;
+    ask(v).then(function () { busy = false; }, function () { busy = false; });
+  }
+  $("#jsend").onclick = send;
+  $("#jin").addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); send(); } });
 })();
 </script>
 </body>
