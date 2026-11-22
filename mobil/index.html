@@ -193,7 +193,7 @@
 </style>
 </head>
 <body>
-  <header><h1>TV Hjem <small style="font-size:11px;opacity:.45;font-weight:500">v50</small></h1><span class="pill" id="status">● Klar</span></header>
+  <header><h1>TV Hjem <small style="font-size:11px;opacity:.45;font-weight:500">v51</small></h1><span class="pill" id="status">● Klar</span></header>
 
   <div class="tabs">
     <button data-tab="fjern" class="on">Fjernb.</button>
@@ -670,7 +670,7 @@ var RC = (function () {
 
 // ---------- Automatisk opdatering: tjek om der er kommet en ny version ----------
 (function () {
-  var MINE = "50", last = 0;
+  var MINE = "51", last = 0;
   function check() {
     if (Date.now() - last < 60000) return; last = Date.now();
     fetch("version.txt?t=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.ok ? r.text() : ""; }).then(function (v) {
@@ -707,13 +707,8 @@ var RC = (function () {
       description: "Henter vejret i Aarhus: nu, de næste 24 timer og 4 dage frem, inkl. solop- og nedgang. Brug det til vejr- og MC-spørgsmål.",
       input_schema: obj({}, []) }
   ];
-  // Websøgning (nyheder, sport, nyt på streamingtjenester) – kører hos Anthropic
-  function allTools() {
-    var m = lsGet("jarvisModel") || "claude-opus-5-5";
-    var ws = { type: m === "claude-haiku-5-5" ? "web_search_20250305" : "web_search_20260209", name: "web_search", max_uses: 4,
-      user_location: { type: "approximate", city: "Aarhus", country: "DK", timezone: "Europe/Copenhagen" } };
-    return TOOLS.concat([ws]);
-  }
+  // Ingen websøgning for nu – Jarvis bruger kun sine egne værktøjer
+  function allTools() { return TOOLS; }
   function context() {
     var en = (lsGet("jarvisLang") || "da") === "en";
     var persona = "PERSONLIGHED (gælder altid): Du er Jarvis – en kultiveret, britisk AI-butler i stil med Tony Starks assistent. " +
@@ -727,7 +722,7 @@ var RC = (function () {
       "Når brugeren vil se noget, så brug show_suggestions og nævn kort forslagene; sig at hvilken tjeneste en titel ligger på kan have ændret sig. " +
       "Brugeren kører en fabriksny Honda CB650R (naked bike). MC-regler: under 5° = nej (dækkene har intet greb), 5–10° = måske (kolde dæk), regnrisiko ≥60% eller vindstød ≥15 m/s = nej, frost de seneste dage = saltede veje (dårligt for en ny cykel), kun i dagslys. " +
       "Familien har: DR TV, TV 2 Play, Netflix, HBO Max, Prime Video, Disney+, Viaplay, SkyShowtime, Apple TV, YouTube, Spotify og en PS5. " +
-      "Brug web_search til nyheder (helst danske kilder som DR og TV 2), sport og 'nyt på' streamingtjenesterne – nævn kun det vigtigste, kort. " +
+      "Du har ikke adgang til internettet eller nyheder – sig det høfligt, hvis du bliver spurgt. " +
       "Tidspunkt nu: " + new Date().toLocaleString("da-DK") + ". " + (lastAct ? "Seneste handling: " + lastAct + "." : "");
   }
   // TMDB: søg titlen og find danske streamingtjenester (abonnement først)
@@ -1068,10 +1063,10 @@ var RC = (function () {
     if (Date.now() - last < 3 * 3600 * 1000) return;
     lsSet("jarvisBriefAt", String(Date.now()));
     var h = new Date().getHours();
-    var prompt = "[BRIEFING – brugeren har lige åbnet dig] Giv en kort, levende briefing som Jarvis på højst 5-6 sætninger (den læses højt): " +
+    var prompt = "[BRIEFING – brugeren har lige åbnet dig] Giv en kort, levende briefing som Jarvis på højst 3-4 sætninger (den læses højt): " +
       "en hilsen der passer til tidspunktet (" + (h < 10 ? "morgen" : h < 17 ? "dag" : "aften") + "); vejret i Aarhus nu og resten af dagen; " +
-      "om det er MC-vejr i dag eller i morgen og hvorfor; de 2-3 vigtigste danske nyheder lige nu; og hvis der er noget nyt og værd at se på familiens tjenester, så nævn én ting. " +
-      "Brug get_weather og web_search. Afslut med et kort spørgsmål om, hvad brugeren har lyst til.";
+      "og om det er MC-vejr i dag eller i morgen og hvorfor. " +
+      "Brug get_weather. Afslut med et kort spørgsmål om, hvad brugeren har lyst til.";
     busy = true; setMic("think", "Jarvis gør en briefing klar…");
     ask(prompt).then(done, done);
   }
