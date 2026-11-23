@@ -250,7 +250,7 @@
   loadWeather(); setInterval(loadWeather, 15 * 60 * 1000);
 
   /* ---------- Automatisk opdatering: genindlæs når der er en ny version på GitHub ---------- */
-  var APP_VERSION = "56";
+  var APP_VERSION = "58";
   function checkVersion() {
     if (DEMO || location.protocol === "file:") return;
     var x = new XMLHttpRequest();
@@ -580,7 +580,7 @@
       var en = opts.lang === "en";
       return "PERSONLIGHED: Du er Jarvis – en kultiveret, britisk AI-butler i stil med Tony Starks assistent. Formel, rolig og elegant med tør, underspillet humor. Du kalder brugeren 'sir'. " +
         "Loyal og effektiv: meld kort, hvad du gør, gerne med én lille spydig bemærkning. Citer aldrig replikker fra filmene ordret. Hold svar til 1–3 korte sætninger – de læses højt. " +
-        (en ? "SPROG: Svar ALTID på britisk engelsk, også når brugeren taler dansk. " : "SPROG: Svar på dansk med britisk butler-tone ('sir'). ") +
+        (en ? "LANGUAGE: ALWAYS reply in British English – even though the user speaks Danish and these instructions are in Danish. Never reply in Danish. " : "SPROG: Svar på dansk med britisk butler-tone ('sir'). ") +
         "Du kører på stue-TV'et (Samsung) i Aarhus og kan ikke se, hvad apps viser. Når du åbner en app, så sig kort hvad du gør – appen åbnes, når du har talt færdig. " +
         "Brugeren kører en fabriksny Honda CB650R. MC-regler: under 5° = nej, 5–10° = kolde dæk, regn ≥60% eller vindstød ≥15 m/s = nej, frost de seneste dage = saltede veje, kun i dagslys. " +
         "Familien har: " + C.apps.map(function (a) { return a.navn; }).join(", ") + ". Du har ikke adgang til internettet eller nyheder. " +
@@ -652,7 +652,7 @@
     function ask(text, label) {
       if (busy) { queue = text; return; }
       busy = true; pendingLaunch = null; pendingShow = null;
-      hist.push({ role: "user", content: text });
+      hist.push({ role: "user", content: opts.lang === "en" ? text + "\n\n(Reply in British English.)" : text });
       while (hist.length > 30) { hist.shift(); while (hist.length && !(hist[0].role === "user" && typeof hist[0].content === "string")) hist.shift(); }
       ui("thinking", label || "“" + text + "”"); toPhone({ state: "thinking", text: label || text });
       var final = "", round = 0;
@@ -692,9 +692,14 @@
       store("jarvisBriefAt", Date.now());
       var h = new Date().getHours();
       ask("[BRIEFING – Hjem er lige åbnet] Giv en kort briefing på højst 3-4 sætninger: en hilsen der passer til " + (h < 10 ? "morgenen" : h < 17 ? "dagen" : "aftenen") +
-        ", vejret i Aarhus nu og resten af dagen, og om det er MC-vejr i dag eller i morgen og hvorfor. Brug get_weather. Afslut med et kort spørgsmål om, hvad brugeren har lyst til.", "Briefing");
+        ", vejret i Aarhus nu og resten af dagen, og om det er MC-vejr i dag eller i morgen og hvorfor. Brug get_weather. Afslut med et kort spørgsmål om, hvad brugeren har lyst til." +
+        (opts.lang === "en" ? " IMPORTANT: Deliver the briefing in British English." : ""), "Briefing");
     }
-    function setOpts(o) { if (!o) return; for (var k in o) opts[k] = o[k]; store("jarvisOpts", opts); }
+    function setOpts(o) {
+      if (!o) return;
+      if ((o.lang && o.lang !== opts.lang) || (o.model && o.model !== opts.model)) hist = []; // nyt sprog/hjerne: start forfra
+      for (var k in o) opts[k] = o[k]; store("jarvisOpts", opts);
+    }
     ui("idle");
     return { ask: ask, brief: brief, stop: stop, setOpts: setOpts, ui: ui, busy: function () { return busy; } };
   })();

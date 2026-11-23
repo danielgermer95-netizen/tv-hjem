@@ -206,7 +206,7 @@
 </style>
 </head>
 <body>
-  <header><h1>TV Hjem <small style="font-size:11px;opacity:.45;font-weight:500">v57</small></h1><span class="hright"><span class="pill" id="status">● Klar</span><button class="jfab" id="jfab" aria-label="Tal til Jarvis"><span></span></button></span></header>
+  <header><h1>TV Hjem <small style="font-size:11px;opacity:.45;font-weight:500">v58</small></h1><span class="hright"><span class="pill" id="status">● Klar</span><button class="jfab" id="jfab" aria-label="Tal til Jarvis"><span></span></button></span></header>
 
   <div class="tabs">
     <button data-tab="fjern" class="on">Fjernb.</button>
@@ -356,7 +356,7 @@ function relayConnect() {
   var b = relayBase(); if (!b || relayWS) return;
   try { relayWS = new WebSocket(b.replace(/^http/, "ws") + "?k=" + encodeURIComponent(KANAL)); } catch (e) { relayWS = null; return; }
   var ping;
-  relayWS.onopen = function () { relayRetry = 0; ping = setInterval(function () { try { relayWS.send("ping"); } catch (e) {} }, 30000); };
+  relayWS.onopen = function () { relayRetry = 0; if (window.onRelayOpen) window.onRelayOpen(); ping = setInterval(function () { try { relayWS.send("ping"); } catch (e) {} }, 30000); };
   relayWS.onmessage = function (ev) {
     if (ev.data === "pong") return;
     var m; try { m = JSON.parse(ev.data); } catch (e) { return; }
@@ -699,7 +699,7 @@ var RC = (function () {
 
 // ---------- Automatisk opdatering: tjek om der er kommet en ny version ----------
 (function () {
-  var MINE = "57", last = 0;
+  var MINE = "58", last = 0;
   function check() {
     if (Date.now() - last < 60000) return; last = Date.now();
     fetch("version.txt?t=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.ok ? r.text() : ""; }).then(function (v) {
@@ -734,6 +734,8 @@ var RC = (function () {
   }
   function toTV(o) { o.opts = opts(); return relayPost({ title: "jarvis-ask", message: JSON.stringify(o) }); }
   function sendOpts() { toTV({}); }
+  // Send indstillingerne til TV'et, så snart der er forbindelse (fx sprog)
+  window.onRelayOpen = sendOpts;
 
   var btn = $("#jfab"), bub = $("#jbub");
   function show(mode, msg) {
