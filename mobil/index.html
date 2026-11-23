@@ -15,7 +15,7 @@
   * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
   button { touch-action:manipulation; }
   html,body { height:100%; overflow-x:hidden; -webkit-text-size-adjust:100%; background:var(--bg); color:var(--txt); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
-  body { position:fixed; top:0; left:0; right:0; bottom:0; height:auto; background: radial-gradient(120% 60% at 50% 0%, #2a2f6b 0%, var(--bg) 60%); display:flex; flex-direction:column;
+  body { position:fixed; top:0; left:0; right:0; height:100vh; background: radial-gradient(120% 60% at 50% 0%, #2a2f6b 0%, var(--bg) 60%); display:flex; flex-direction:column;
          padding: calc(env(safe-area-inset-top) + 14px) 16px calc(env(safe-area-inset-bottom) + 14px); overscroll-behavior:none; }
   header { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
   h1 { font-size:22px; font-weight:700; }
@@ -206,7 +206,7 @@
 </style>
 </head>
 <body>
-  <header><h1>TV Hjem <small style="font-size:11px;opacity:.45;font-weight:500">v61</small></h1><span class="hright"><span class="pill" id="status">● Klar</span><button class="jfab" id="jfab" aria-label="Tal til Jarvis"><span></span></button></span></header>
+  <header><h1>TV Hjem <small style="font-size:11px;opacity:.45;font-weight:500">v62</small></h1><span class="hright"><span class="pill" id="status">● Klar</span><button class="jfab" id="jfab" aria-label="Tal til Jarvis"><span></span></button></span></header>
 
   <div class="tabs">
     <button data-tab="fjern" class="on">Fjernb.</button>
@@ -345,6 +345,17 @@ var KANAL = (function () {
 var NTFY = "https://ntfy.sh/" + encodeURIComponent(KANAL);
 
 var $ = function (s) { return document.querySelector(s); };
+// iPhone-hjemmeskærm-app: nogle iOS-versioner melder en for lav skærmhøjde, så siden
+// klippes i bunden. Brug den rigtige skærmhøjde, når appen kører fra hjemmeskærmen.
+(function fitScreen() {
+  function fit() {
+    var h = window.innerHeight;
+    if (navigator.standalone && screen.height) h = Math.max(h, window.matchMedia("(orientation: portrait)").matches ? Math.max(screen.height, screen.width) : Math.min(screen.height, screen.width));
+    document.body.style.height = h + "px";
+  }
+  fit(); window.addEventListener("resize", fit); window.addEventListener("orientationchange", function () { setTimeout(fit, 300); });
+  document.addEventListener("visibilitychange", function () { if (!document.hidden) setTimeout(fit, 100); });
+})();
 function toast(m) { var t = $("#toast"); t.textContent = m; t.classList.add("on"); clearTimeout(t._t); t._t = setTimeout(function () { t.classList.remove("on"); }, 2200); }
 function status(ok, m) { var s = $("#status"); s.textContent = "● " + m; s.style.color = ok ? "#6ff0a8" : "#ff8a8a"; s.style.background = ok ? "rgba(60,220,130,.15)" : "rgba(255,90,90,.15)"; }
 // ---------- Beskedcentral: egen relay på Jarvis-serveren (hurtig), ntfy.sh som reserve ----------
@@ -700,7 +711,7 @@ var RC = (function () {
 
 // ---------- Automatisk opdatering: tjek om der er kommet en ny version ----------
 (function () {
-  var MINE = "61", last = 0;
+  var MINE = "62", last = 0;
   function check() {
     if (Date.now() - last < 60000) return; last = Date.now();
     fetch("version.txt?t=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.ok ? r.text() : ""; }).then(function (v) {
