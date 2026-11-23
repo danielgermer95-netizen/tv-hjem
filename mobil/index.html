@@ -206,7 +206,7 @@
 </style>
 </head>
 <body>
-  <header><h1>TV Hjem <small style="font-size:11px;opacity:.45;font-weight:500">v60</small></h1><span class="hright"><span class="pill" id="status">● Klar</span><button class="jfab" id="jfab" aria-label="Tal til Jarvis"><span></span></button></span></header>
+  <header><h1>TV Hjem <small style="font-size:11px;opacity:.45;font-weight:500">v61</small></h1><span class="hright"><span class="pill" id="status">● Klar</span><button class="jfab" id="jfab" aria-label="Tal til Jarvis"><span></span></button></span></header>
 
   <div class="tabs">
     <button data-tab="fjern" class="on">Fjernb.</button>
@@ -700,7 +700,7 @@ var RC = (function () {
 
 // ---------- Automatisk opdatering: tjek om der er kommet en ny version ----------
 (function () {
-  var MINE = "60", last = 0;
+  var MINE = "61", last = 0;
   function check() {
     if (Date.now() - last < 60000) return; last = Date.now();
     fetch("version.txt?t=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.ok ? r.text() : ""; }).then(function (v) {
@@ -733,7 +733,14 @@ var RC = (function () {
   function opts() {
     return { model: $("#jmodel").value, lang: $("#jlang").value, voice: $("#jspeak").checked, fast: $("#jfast").checked, brief: $("#jbrief").checked };
   }
-  function toTV(o) { o.opts = opts(); return relayPost({ title: "jarvis-ask", message: JSON.stringify(o) }); }
+  // Via egen central – virker den ikke, så via ntfy som reserve
+  function toTV(o) {
+    o.opts = opts(); var msg = JSON.stringify(o);
+    return relayPost({ title: "jarvis-ask", message: msg }).then(function (ok) {
+      if (ok) return true;
+      return fetch(NTFY, { method: "POST", body: msg, headers: { "Title": "jarvis-ask" } }).then(function (r) { return r.ok; }).catch(function () { return false; });
+    });
+  }
   function sendOpts() { toTV({}); }
   // Send indstillingerne til TV'et, så snart der er forbindelse (fx sprog)
   window.onRelayOpen = sendOpts;

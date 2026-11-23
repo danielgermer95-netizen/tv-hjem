@@ -250,7 +250,7 @@
   loadWeather(); setInterval(loadWeather, 15 * 60 * 1000);
 
   /* ---------- Automatisk opdatering: genindlæs når der er en ny version på GitHub ---------- */
-  var APP_VERSION = "59";
+  var APP_VERSION = "61";
   function checkVersion() {
     if (DEMO || location.protocol === "file:") return;
     var x = new XMLHttpRequest();
@@ -542,7 +542,7 @@
   var JA = (function () {
     var SERVER = "https://tv-hjem-jarvis.daniel-germer95.workers.dev";
     var hist = [], busy = false, queue = null, lastAct = "", pendingLaunch = null, pendingShow = null;
-    var opts = store("jarvisOpts") || { model: "claude-opus-5-5", lang: "da", fast: false, voice: true };
+    var opts = store("jarvisOpts") || { model: "claude-opus-5-5", lang: "en", fast: false, voice: true };
     // Felt øverst i højre kolonne
     var box = document.createElement("div"); box.id = "ja"; box.className = "st-idle";
     box.innerHTML = '<canvas id="ja-orb" width="520" height="300"></canvas>';
@@ -608,7 +608,8 @@
         "Du kører på stue-TV'et (Samsung) i Aarhus og kan ikke se, hvad apps viser. Når du åbner en app, så sig kort hvad du gør – appen åbnes, når du har talt færdig. " +
         "Brugeren kører en fabriksny Honda CB650R. MC-regler: under 5° = nej, 5–10° = kolde dæk, regn ≥60% eller vindstød ≥15 m/s = nej, frost de seneste dage = saltede veje, kun i dagslys. " +
         "Familien har: " + C.apps.map(function (a) { return a.navn; }).join(", ") + ". Du har ikke adgang til internettet eller nyheder. " +
-        "Tid nu: " + new Date().toLocaleString("da-DK") + ". " + (lastAct ? "Seneste handling: " + lastAct + "." : "");
+        "Tid nu: " + new Date().toLocaleString("da-DK") + ". " + (lastAct ? "Seneste handling: " + lastAct + "." : "") +
+        (en ? " FINAL RULE, overrides everything above: you speak ONLY British English. Every reply must be in English." : "");
     }
     function weatherText() {
       var w = store("vejr"); if (!w || !w.hourly) return "Fejl: intet vejr endnu";
