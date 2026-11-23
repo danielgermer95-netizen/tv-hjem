@@ -206,7 +206,7 @@
 </style>
 </head>
 <body>
-  <header><h1>TV Hjem <small style="font-size:11px;opacity:.45;font-weight:500">v62</small></h1><span class="hright"><span class="pill" id="status">● Klar</span><button class="jfab" id="jfab" aria-label="Tal til Jarvis"><span></span></button></span></header>
+  <header><h1>TV Hjem <small style="font-size:11px;opacity:.45;font-weight:500">v63</small></h1><span class="hright"><span class="pill" id="status">● Klar</span><button class="jfab" id="jfab" aria-label="Tal til Jarvis"><span></span></button></span></header>
 
   <div class="tabs">
     <button data-tab="fjern" class="on">Fjernb.</button>
@@ -661,6 +661,7 @@ var RC = (function () {
 
   // Knapper – hold nede for at gentage (lyd, pile, kanal)
   document.querySelectorAll("#fjern [data-key]").forEach(function (b) {
+    if (b.closest(".pad")) return; // retningsfeltet har sin egen styring (tryk og swipe)
     var t1, t2;
     function stop() { clearTimeout(t1); clearInterval(t2); b.classList.remove("down"); }
     b.addEventListener("pointerdown", function (e) {
@@ -670,6 +671,31 @@ var RC = (function () {
     ["pointerup", "pointerleave", "pointercancel"].forEach(function (ev) { b.addEventListener(ev, stop); });
     b.addEventListener("contextmenu", function (e) { e.preventDefault(); });
   });
+  // Retningsfeltet: tryk = tast, swipe = pil i den retning (bruges til at dreje kortene om bjerget)
+  (function () {
+    var pad = document.querySelector(".pad"), sx, sy, btn, moved, t1, t2;
+    function stop() { clearTimeout(t1); clearInterval(t2); if (btn) btn.classList.remove("down"); }
+    pad.addEventListener("pointerdown", function (e) {
+      e.preventDefault(); sx = e.clientX; sy = e.clientY; moved = false;
+      btn = e.target.closest("[data-key]"); if (btn) btn.classList.add("down");
+      // Hold en pil inde for at gentage
+      if (btn && btn.hasAttribute("data-rep")) t1 = setTimeout(function () { if (!moved) { moved = true; key(btn.dataset.key); t2 = setInterval(function () { key(btn.dataset.key); }, 160); } }, 420);
+    });
+    pad.addEventListener("pointermove", function (e) {
+      if (sx == null || moved) return;
+      var dx = e.clientX - sx, dy = e.clientY - sy;
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < 30) return;
+      moved = true; stop();
+      key(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "KEY_RIGHT" : "KEY_LEFT") : (dy > 0 ? "KEY_DOWN" : "KEY_UP"));
+      if (navigator.vibrate) navigator.vibrate(10);
+    });
+    pad.addEventListener("pointerup", function () {
+      if (sx != null && !moved && btn) key(btn.dataset.key);
+      stop(); sx = null; btn = null;
+    });
+    pad.addEventListener("pointercancel", function () { stop(); sx = null; btn = null; });
+    pad.style.touchAction = "none";
+  })();
   $("#numBtn").onclick = function () {
     var on = $("#numpad").classList.toggle("on"); this.classList.toggle("on", on);
     document.querySelector(".pad").style.display = on ? "none" : "";
@@ -711,7 +737,7 @@ var RC = (function () {
 
 // ---------- Automatisk opdatering: tjek om der er kommet en ny version ----------
 (function () {
-  var MINE = "62", last = 0;
+  var MINE = "63", last = 0;
   function check() {
     if (Date.now() - last < 60000) return; last = Date.now();
     fetch("version.txt?t=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.ok ? r.text() : ""; }).then(function (v) {

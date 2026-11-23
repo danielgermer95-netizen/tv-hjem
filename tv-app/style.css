@@ -244,3 +244,77 @@ body {
 /* ---------- Jarvis i højre kolonne: kun den levende kugle ---------- */
 #ja { flex: none; height: 230px; margin: -14px -10px 10px; border-bottom: 1px solid rgba(255,255,255,.12); display: flex; align-items: center; justify-content: center; overflow: hidden; }
 #ja-orb { width: 520px; height: 300px; max-width: 100%; object-fit: contain; }
+
+/* =================== Nyt design: bjerg + ring af kort =================== */
+#scene-back, #scene-front { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+#scene-back { z-index: 0; }
+body.orbit #top { z-index: 2; }
+#scene-front { z-index: 10; pointer-events: none; }
+body.orbit #sky, body.orbit #stars, body.orbit #hills { display: none; }
+body.orbit #precip { z-index: 12; }
+
+/* Uret: stort og centreret, toppen af bjerget dækker den nederste del */
+body.orbit #top { left: 0; right: 0; top: 70px; text-align: center; }
+body.orbit #date { font-size: 32px; font-weight: 500; letter-spacing: 1px; opacity: .9; text-shadow: 0 2px 16px rgba(0,0,0,.25); }
+body.orbit #clock { font-size: 300px; font-weight: 200; letter-spacing: -8px; line-height: 1; margin-top: 0; color: rgba(255,255,255,.88); text-shadow: 0 10px 60px rgba(0,0,0,.18); }
+
+/* Kortene */
+body.orbit .card {
+  position: absolute; left: 0; top: 0; width: 560px; height: 300px; padding: 24px 30px;
+  background: rgba(16,22,40,.38); border: 1px solid rgba(255,255,255,.24); border-radius: 32px;
+  box-shadow: 0 18px 50px rgba(0,0,0,.25);
+  transform-origin: 50% 50%;
+  transition: transform .7s cubic-bezier(.3,.8,.3,1), opacity .7s, box-shadow .3s, border-color .3s;
+  overflow: hidden;
+}
+body.orbit .card.front { background: rgba(16,22,40,.5); }
+body.orbit .card.sel { border-color: rgba(255,255,255,.95); box-shadow: 0 0 0 3px rgba(255,255,255,.6), 0 20px 60px rgba(0,0,0,.35); }
+.card .ch, body.orbit .notes-head { font-size: 16px; font-weight: 700; letter-spacing: 1.8px; text-transform: uppercase; opacity: .7; margin-bottom: 8px; }
+
+/* Vejr-kortet */
+.cw-main { display: flex; align-items: center; gap: 12px; margin-top: -4px; }
+#cw-icon svg { width: 78px; height: 78px; }
+#cw-temp { font-size: 84px; font-weight: 200; letter-spacing: -3px; line-height: 1; }
+#cw-desc { font-size: 21px; opacity: .85; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#cw-mc { margin-top: 10px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.mc-l { font-size: 21px; font-weight: 700; }
+#cw-mc .pill { font-size: 18px; padding: 3px 14px; }
+.cw-tip { width: 100%; font-size: 18px; opacity: .8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#cw-tl { margin-top: 10px; }
+#cw-tl .tl i { height: 10px; }
+#cw-tl .tl.lbl span { font-size: 13px; }
+
+/* Jarvis-kortet: kun kuglen */
+#c-jarvis { text-align: center; }
+body.orbit #ja { height: 230px; margin: -6px -30px 0; border: 0; padding: 0; }
+
+/* Beskeder-kortet (genbruger beskedfeltet) */
+body.orbit #notes { right: auto; display: flex; flex-direction: column; }
+body.orbit #note-img { max-height: 170px; border-radius: 14px; }
+body.orbit #note-text { font-size: 30px; margin-top: 6px; }
+body.orbit #note-meta { font-size: 16px; }
+body.orbit #note-empty { font-size: 20px; }
+
+/* Senest åbnet */
+.cl-row { display: flex; align-items: center; gap: 26px; margin-top: 18px; }
+.cl-row .tile { flex: none; }
+.cl-name { font-size: 38px; font-weight: 700; }
+.cl-when { font-size: 22px; opacity: .8; margin-top: 4px; }
+.cl-hint { font-size: 16px; opacity: .5; margin-top: 10px; }
+.cl-empty { font-size: 22px; opacity: .55; margin-top: 60px; text-align: center; }
+
+/* Dock: lidt mindre og nederst, dæmpes når man styrer kortene */
+body.orbit #dock { z-index: 40; bottom: 36px; padding: 16px 22px; gap: 18px; background: rgba(8,12,24,.42); transition: opacity .3s; }
+body.orbit #dock .tile { width: 96px; height: 96px; border-radius: 24px; }
+body.orbit #dock.away { opacity: .55; }
+body.orbit #dock.away .tile.focus { transform: none; box-shadow: none; }
+body.orbit #dock.away .tile.focus .label { opacity: 0; }
+
+/* Hele vejrudsigten (OK på vejr-kortet) */
+body.orbit #weather { display: none; z-index: 60; left: 160px; width: 1600px; top: 200px; height: 640px; background: rgba(10,16,32,.95); }
+body.orbit.wx-open #weather { display: flex; }
+body.orbit #toast { z-index: 80; }
+body.orbit #jv { z-index: 70; }
+body.orbit #notes { left: 0; top: 0; right: auto; width: 560px; height: 300px; padding: 24px 30px; }
+body.orbit #notes:not(.front) { background: rgba(16,22,40,.38); }
+body.orbit #notes.front { background: rgba(16,22,40,.5); }

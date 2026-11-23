@@ -237,6 +237,7 @@
     }
     $("daily").innerHTML = out;
     theme(!!c.is_day, c.weather_code, now.getHours());
+    if (ORB) { ORB.sync(); ORB.draw(); }
   }
   function demoData() {
     var t0 = new Date(); t0.setMinutes(0, 0, 0);
@@ -250,7 +251,7 @@
   loadWeather(); setInterval(loadWeather, 15 * 60 * 1000);
 
   /* ---------- Automatisk opdatering: genindlæs når der er en ny version på GitHub ---------- */
-  var APP_VERSION = "61";
+  var APP_VERSION = "63";
   function checkVersion() {
     if (DEMO || location.protocol === "file:") return;
     var x = new XMLHttpRequest();
@@ -318,6 +319,7 @@
   function launch(key) {
     var a = C.apps.filter(function (x) { return x.key === key; })[0];
     if (!a) return;
+    if (key !== "hjem") { store("lastOpen", { key: key, t: Date.now() }); if (ORB) ORB.sync(); }
     if (a.hdmi) return sendKey("KEY_HDMI" + C.playstationHdmi, "Tænd PlayStation – eller tryk PS-knappen på controlleren");
     if (!HAS_TIZEN) return toast("Åbn " + a.navn + " fra mobilen (Apps-fanen)");
     var id = findApp(a);
@@ -372,6 +374,7 @@
   /* ---------- Fjernbetjening ---------- */
   document.addEventListener("keydown", function (e) {
     if (JV.open() && JV.key(e.keyCode)) { e.preventDefault(); return; }
+    if (ORB && ORB.key(e.keyCode)) { e.preventDefault(); return; }
     switch (e.keyCode) {
       case 37: setFocus(focus - 1); break;
       case 39: setFocus(focus + 1); break;
@@ -554,7 +557,7 @@
       var u = Math.random() * 2 - 1, th = Math.random() * Math.PI * 2, r = Math.sqrt(1 - u * u);
       P.push([r * Math.cos(th), u, r * Math.sin(th), Math.random(), 0.6 + Math.random() * 0.8]);
     }
-    var TGT = { idle: [46, 0, 0.25], listening: [62, 0.15, 0.5], thinking: [56, 0.05, 1.6], speaking: [76, 1, 0.6] };
+    var TGT = { idle: [66, 0, 0.25], listening: [80, 0.15, 0.5], thinking: [74, 0.05, 1.6], speaking: [86, .8, 0.6] };
     function draw(ts) {
       requestAnimationFrame(draw);
       if (document.hidden) return;
@@ -575,7 +578,7 @@
       }
     }
     requestAnimationFrame(draw);
-    function ui(state) { st = state || "idle"; box.className = "st-" + st; }
+    function ui(state) { st = state || "idle"; box.className = "st-" + st; if (ORB) ORB.jarvis(st); }
     function toPhone(o) { relaySend({ title: "jarvis-out", message: JSON.stringify(o) }); }
     function api(body) {
       return new Promise(function (res, rej) {
@@ -742,6 +745,7 @@
     var t = new Date(n.t);
     $("note-meta").textContent = "Fra mobilen · " + pad(t.getHours()) + ":" + pad(t.getMinutes());
     var el = $("note-body"); el.classList.remove("pop"); void el.offsetWidth; el.classList.add("pop");
+    if (ORB && Date.now() - n.t < 60000) ORB.note();
   }
   function clearNote() {
     store("note", null);
@@ -857,4 +861,168 @@
               { title: "About Time", year: 2013, service: "Prime Video", why: "Rørende med humor" },
               { title: "The Proposal", year: 2009, service: "Disney+", why: "Klassisk rom-com" },
               { title: "Past Lives", year: 2023, service: "Viaplay", why: "Stille og smuk" }] });
+
+  /* ---------- Nyt design: landskab med bjerg, uret bag toppen og kort i en ring om bjerget ---------- */
+  var ORB = (function () {
+    var st = $("stage");
+    document.body.classList.add("orbit");
+    function mk(tag, id, cls) { var e = document.createElement(tag); if (id) e.id = id; if (cls) e.className = cls; return e; }
+    var back = mk("canvas", "scene-back"), front = mk("canvas", "scene-front");
+    back.width = front.width = 1920; back.height = front.height = 1080;
+    st.insertBefore(back, st.firstChild);
+    st.insertBefore(front, $("top").nextSibling);   // uret ligger mellem himmel og bjerg
+    // Kortene
+    var cW = mk("div", "c-weather", "card"), cJ = mk("div", "c-jarvis", "card"), cN = $("notes"), cL = mk("div", "c-last", "card");
+    cN.classList.add("card");
+    cW.innerHTML = '<div class="ch">Vejret i ' + C.by + '</div><div class="cw-main"><span id="cw-icon"></span><span id="cw-temp">--°</span></div><div id="cw-desc"></div><div id="cw-mc"></div><div id="cw-tl"></div>';
+    cJ.innerHTML = '<div class="ch">Jarvis</div>'; cJ.appendChild($("ja"));
+    cL.innerHTML = '<div class="ch">Senest åbnet</div><div id="cl-body"></div>';
+    var cards = [cW, cJ, cN, cL];
+    cards.forEach(function (c) { st.insertBefore(c, $("dock")); });
+    var sel = 0, zone = "dock", opened = false;
+    // Placering på en ellipse om bjerget: forrest = stor og tydelig, bagerst = gemt bag bjerget
+    var POS = [
+      { x: 960, y: 640, s: 1, o: 1, z: 30 },
+      { x: 1590, y: 520, s: .72, o: .7, z: 20 },
+      { x: 960, y: 470, s: .5, o: .3, z: 5 },
+      { x: 330, y: 520, s: .72, o: .7, z: 20 }
+    ];
+    function layout() {
+      cards.forEach(function (c, i) {
+        var p = POS[(i - sel + 4) % 4];
+        c.style.transform = "translate(" + (p.x - 280) + "px," + (p.y - 150) + "px) scale(" + p.s + ")";
+        c.style.opacity = p.o; c.style.zIndex = p.z;
+        c.classList.toggle("front", p === POS[0]);
+        c.classList.toggle("sel", zone === "orbit" && p === POS[0]);
+      });
+    }
+    function rotate(d) { sel = (sel + d + 4) % 4; layout(); }
+    function show(card) { var i = cards.indexOf(card); if (i >= 0 && i !== sel) { sel = i; layout(); } }
+    layout();
+
+    /* ----- Indhold ----- */
+    function sync() {
+      $("cw-icon").innerHTML = $("now-icon").innerHTML;
+      $("cw-temp").textContent = $("now-temp").textContent;
+      $("cw-desc").textContent = $("now-desc").textContent;
+      var h = $("hourly"), pill = h.querySelector(".pill"), title = h.querySelector(".mc-title"), tip = h.querySelector(".mc-tip");
+      $("cw-mc").innerHTML = pill ? '<span class="mc-l">🏍 ' + (title ? title.textContent : "MC") + '</span>' + pill.outerHTML + (tip ? '<div class="cw-tip">' + tip.textContent.split(" · ")[0] + '</div>' : "") : "";
+      var tl = h.querySelectorAll(".tl"); $("cw-tl").innerHTML = tl.length ? tl[0].outerHTML + (tl[1] ? tl[1].outerHTML : "") : "";
+      var l = store("lastOpen"), a = l && C.apps.filter(function (x) { return x.key === l.key; })[0];
+      if (a) {
+        var t = new Date(l.t), today = new Date().toDateString() === t.toDateString();
+        $("cl-body").innerHTML = '<div class="cl-row">' + tileHtml(a) + '<div><div class="cl-name">' + a.navn + '</div><div class="cl-when">' + (today ? "i dag" : DAGE[t.getDay()]) + " kl. " + pad(t.getHours()) + ":" + pad(t.getMinutes()) + '</div><div class="cl-hint">OK for at fortsætte</div></div></div>';
+      } else $("cl-body").innerHTML = '<div class="cl-empty">Ingen apps åbnet endnu</div>';
+    }
+    setInterval(sync, 60000);
+
+    /* ----- Fjernbetjening ----- */
+    function action() {
+      var c = cards[sel];
+      if (c === cW) { opened = true; document.body.classList.add("wx-open"); }
+      else if (c === cL) { var l = store("lastOpen"); if (l) launch(l.key); }
+      else if (c === cJ) JA.brief(true);
+      else if (c === cN) clearNote();
+    }
+    function key(k) {
+      if (opened) { if (k === 10009 || k === 8 || k === 27 || k === 13) { opened = false; document.body.classList.remove("wx-open"); return true; } return true; }
+      if (zone === "orbit") {
+        if (k === 37) { rotate(1); return true; }
+        if (k === 39) { rotate(-1); return true; }
+        if (k === 13) { action(); return true; }
+        if (k === 40 || k === 10009 || k === 8) { zone = "dock"; $("dock").classList.remove("away"); layout(); return true; }
+        return true;
+      }
+      if (k === 38) { zone = "orbit"; $("dock").classList.add("away"); layout(); return true; }
+      return false;
+    }
+
+    /* ----- Jarvis og beskeder drejer selv frem ----- */
+    var backTo = null, backT;
+    function jarvis(state) {
+      clearTimeout(backT);
+      if (state === "idle") { if (backTo !== null) backT = setTimeout(function () { sel = backTo; backTo = null; layout(); }, 4000); return; }
+      if (cards[sel] !== cJ) { if (backTo === null) backTo = sel; show(cJ); }
+    }
+    function note() { backTo = null; show(cN); }
+
+    /* ----- Landskabet: tegnes én gang (og igen når tidspunktet skifter) ----- */
+    function rnd(seed) { return function () { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; }; }
+    function hx(c) { return [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)]; }
+    function mix(a, b, t) { a = hx(a); b = hx(b); return "rgb(" + [0, 1, 2].map(function (i) { return Math.round(a[i] + (b[i] - a[i]) * t); }).join(",") + ")"; }
+    var PAL = {
+      dawn:  { sky: ["#41537f", "#c98f8c", "#f7c99b"], sun: [560, 690, "#ffd9a0"], lit: "#94695c", shade: "#4d3c48", snow: "#f6e4dc", mist: "255,226,210", far: "#8c7d95", fg1: "#3b4636", fg2: "#1d261d", stars: 0 },
+      day:   { sky: ["#4d84c4", "#9fc4e4", "#e6ecee"], sun: [1450, 170, "#fff6d8"], lit: "#7d5f50", shade: "#4c4044", snow: "#f4f1ec", mist: "255,255,255", far: "#8fa3b8", fg1: "#33503a", fg2: "#1b2c1f", stars: 0 },
+      dusk:  { sky: ["#2b3463", "#b86a73", "#f3a861"], sun: [1380, 700, "#ffb36b"], lit: "#7a4a4c", shade: "#35273b", snow: "#f3c9b9", mist: "255,190,160", far: "#6f5a7c", fg1: "#2c3127", fg2: "#141a14", stars: .25 },
+      night: { sky: ["#050a19", "#0e1a3a", "#22325c"], moon: [1460, 190], lit: "#2c3654", shade: "#171d33", snow: "#b8c5e2", mist: "150,170,220", far: "#1c2645", fg1: "#0e1626", fg2: "#070b15", stars: 1 }
+    };
+    function period() {
+      var w = store("vejr"), now = new Date(), h = now.getHours() + now.getMinutes() / 60, up = 8, down = 16;
+      try { var i = w.daily.time.indexOf(now.toISOString().slice(0, 10)); if (i < 0) i = w.daily.time.length > 3 ? 3 : 0;
+        var su = w.daily.sunrise[i].slice(11).split(":"), sd = w.daily.sunset[i].slice(11).split(":");
+        up = +su[0] + su[1] / 60; down = +sd[0] + sd[1] / 60; } catch (e) {}
+      if (h < up - 0.75 || h > down + 0.75) return "night";
+      if (h < up + 1.5) return "dawn";
+      if (h > down - 1.5) return "dusk";
+      return "day";
+    }
+    function grey() { var w = store("vejr"); return w && w.current && w.current.weather_code >= 3; }
+    var drawn = "";
+    function draw() {
+      var key = period() + (grey() ? "g" : ""); if (key === drawn) return; drawn = key;
+      var p = PAL[period()], R = rnd(7), b = back.getContext("2d"), f = front.getContext("2d");
+      // Himmel
+      var g = b.createLinearGradient(0, 0, 0, 820);
+      g.addColorStop(0, p.sky[0]); g.addColorStop(.55, p.sky[1]); g.addColorStop(1, p.sky[2]);
+      b.fillStyle = g; b.fillRect(0, 0, 1920, 1080);
+      if (p.stars) for (var i = 0; i < 160; i++) { b.fillStyle = "rgba(255,255,255," + (p.stars * (.25 + R() * .75)).toFixed(2) + ")"; var s = R() < .1 ? 2.4 : 1.4; b.fillRect(R() * 1920, R() * 620, s, s); }
+      if (p.sun) { var sg = b.createRadialGradient(p.sun[0], p.sun[1], 0, p.sun[0], p.sun[1], 420); sg.addColorStop(0, p.sun[2]); sg.addColorStop(.12, "rgba(255,240,210,.55)"); sg.addColorStop(1, "rgba(255,240,210,0)"); b.fillStyle = sg; b.fillRect(0, 0, 1920, 1080); }
+      if (p.moon) { var mg = b.createRadialGradient(p.moon[0], p.moon[1], 0, p.moon[0], p.moon[1], 160); mg.addColorStop(0, "rgba(230,236,255,.35)"); mg.addColorStop(1, "rgba(230,236,255,0)"); b.fillStyle = mg; b.fillRect(0, 0, 1920, 1080); b.fillStyle = "#eef2ff"; b.beginPath(); b.arc(p.moon[0], p.moon[1], 34, 0, 7); b.fill(); }
+      if (grey()) { b.fillStyle = "rgba(150,160,175,.38)"; b.fillRect(0, 0, 1920, 1080); }
+      // Fjerne bakker bag bjerget
+      b.fillStyle = p.far; b.beginPath(); b.moveTo(0, 1080);
+      for (var x = 0; x <= 1920; x += 20) b.lineTo(x, 650 + Math.sin(x / 210) * 34 + Math.sin(x / 77) * 12 + (R() - .5) * 6);
+      b.lineTo(1920, 1080); b.fill();
+      // Bjerget (forgrund-lærredet, så uret kan gemme sig bag toppen)
+      f.clearRect(0, 0, 1920, 1080);
+      var top = 330, base = 860, W = 940, pts = [];
+      for (x = 960 - W; x <= 960 + W; x += 8) {
+        var t = Math.abs(x - 960) / W, y = t < .03 ? top + (R() - .5) * 2 : top + (base - top) * (1 - Math.pow(1 - t, 1.55));
+        pts.push([x, y + (t > .03 ? (R() - .5) * 9 * (1 - t * .6) : 0)]);
+      }
+      function mtn(ctx) { ctx.beginPath(); ctx.moveTo(pts[0][0], 1080); pts.forEach(function (q) { ctx.lineTo(q[0], q[1]); }); ctx.lineTo(pts[pts.length - 1][0], 1080); ctx.closePath(); }
+      f.save(); mtn(f); f.clip();
+      var mg2 = f.createLinearGradient(0, top, 0, base); mg2.addColorStop(0, p.lit); mg2.addColorStop(1, mix(p.lit, p.shade, .5));
+      f.fillStyle = mg2; f.fillRect(0, 0, 1920, 1080);
+      // Skyggesiden og kløfter
+      var light = (p.sun && p.sun[0] > 960) ? 1 : -1;
+      f.fillStyle = p.shade; f.globalAlpha = .75; f.beginPath(); f.moveTo(960, top);
+      for (var yy = top; yy <= base; yy += 14) f.lineTo(960 - light * ((yy - top) * .18 + (R() - .5) * 18), yy);
+      f.lineTo(960 - light * 1000, base); f.lineTo(960 - light * 1000, top); f.closePath(); f.fill();
+      f.globalAlpha = .09; f.strokeStyle = p.shade; f.lineWidth = 4;
+      for (i = 0; i < 12; i++) { var sx = 960 + (R() - .5) * 120, ex = 960 + (sx - 960) * 6 + (R() - .5) * 200; f.beginPath(); f.moveTo(sx, top + 10); f.quadraticCurveTo((sx + ex) / 2 + (R() - .5) * 60, 520, ex, 760 + R() * 60); f.stroke(); }
+      f.globalAlpha = 1;
+      // Sne på toppen
+      f.fillStyle = p.snow; f.beginPath(); f.moveTo(800, top - 10);
+      for (x = 780; x <= 1140; x += 12) { var tt = Math.abs(x - 960) / 180; f.lineTo(x, top + 20 + (1 - tt) * 60 + (R() - .5) * 36); }
+      f.lineTo(1140, top - 10); f.closePath(); f.globalAlpha = .92; f.fill(); f.globalAlpha = 1;
+      // Dis nederst på bjerget
+      var hz = f.createLinearGradient(0, top, 0, base); hz.addColorStop(0, "rgba(" + p.mist + ",0)"); hz.addColorStop(1, "rgba(" + p.mist + ",.45)");
+      f.fillStyle = hz; f.fillRect(0, 0, 1920, 1080);
+      f.restore();
+      // Tågebælte
+      var fog = f.createLinearGradient(0, 640, 0, 860); fog.addColorStop(0, "rgba(" + p.mist + ",0)"); fog.addColorStop(.55, "rgba(" + p.mist + "," + (p.stars ? .22 : .6) + ")"); fog.addColorStop(1, "rgba(" + p.mist + ",0)");
+      f.fillStyle = fog; f.fillRect(0, 640, 1920, 220);
+      // Skov i forgrunden
+      function trees(y0, amp, col, h) {
+        f.fillStyle = col; f.beginPath(); f.moveTo(0, 1080);
+        for (var x = 0; x <= 1920; x += 9) f.lineTo(x, y0 + Math.sin(x / 260 + h) * amp - (R() * 16) * (x % 18 ? 1 : .3));
+        f.lineTo(1920, 1080); f.fill();
+      }
+      trees(820, 22, p.fg1, 1); trees(900, 30, p.fg2, 4);
+    }
+    draw(); setInterval(draw, 5 * 60000);
+    return { sync: sync, key: key, jarvis: jarvis, note: note, draw: function () { drawn = ""; draw(); } };
+  })();
+  ORB.sync();
 })();
