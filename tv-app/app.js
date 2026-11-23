@@ -251,7 +251,7 @@
   loadWeather(); setInterval(loadWeather, 15 * 60 * 1000);
 
   /* ---------- Automatisk opdatering: genindlæs når der er en ny version på GitHub ---------- */
-  var APP_VERSION = "63";
+  var APP_VERSION = "64";
   function checkVersion() {
     if (DEMO || location.protocol === "file:") return;
     var x = new XMLHttpRequest();
@@ -557,7 +557,7 @@
       var u = Math.random() * 2 - 1, th = Math.random() * Math.PI * 2, r = Math.sqrt(1 - u * u);
       P.push([r * Math.cos(th), u, r * Math.sin(th), Math.random(), 0.6 + Math.random() * 0.8]);
     }
-    var TGT = { idle: [66, 0, 0.25], listening: [80, 0.15, 0.5], thinking: [74, 0.05, 1.6], speaking: [86, .8, 0.6] };
+    var TGT = { idle: [46, 0, 0.25], listening: [62, 0.15, 0.5], thinking: [56, 0.05, 1.6], speaking: [76, 1, 0.6] };
     function draw(ts) {
       requestAnimationFrame(draw);
       if (document.hidden) return;
@@ -863,7 +863,8 @@
               { title: "Past Lives", year: 2023, service: "Viaplay", why: "Stille og smuk" }] });
 
   /* ---------- Nyt design: landskab med bjerg, uret bag toppen og kort i en ring om bjerget ---------- */
-  var ORB = (function () {
+  // Bjerg-designet er slået fra (det gamle design foretrækkes). Slå til igen med store("design", "orbit").
+  var ORB = store("design") !== "orbit" ? null : (function () {
     var st = $("stage");
     document.body.classList.add("orbit");
     function mk(tag, id, cls) { var e = document.createElement(tag); if (id) e.id = id; if (cls) e.className = cls; return e; }
@@ -1024,5 +1025,5 @@
     draw(); setInterval(draw, 5 * 60000);
     return { sync: sync, key: key, jarvis: jarvis, note: note, draw: function () { drawn = ""; draw(); } };
   })();
-  ORB.sync();
+  if (ORB) ORB.sync();
 })();
