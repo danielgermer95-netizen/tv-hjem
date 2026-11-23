@@ -250,7 +250,7 @@
   loadWeather(); setInterval(loadWeather, 15 * 60 * 1000);
 
   /* ---------- Automatisk opdatering: genindlæs når der er en ny version på GitHub ---------- */
-  var APP_VERSION = "49";
+  var APP_VERSION = "55";
   function checkVersion() {
     if (DEMO || location.protocol === "file:") return;
     var x = new XMLHttpRequest();
@@ -465,6 +465,7 @@
     var audio = null;
     // Fortæl mobilen, hvornår TV'et taler, så den ikke lytter til Jarvis' egen stemme
     function tellPhone(msg) {
+      if (relaySend({ event: "message", title: "tvaudio", message: msg, time: Math.floor(Date.now() / 1000) })) return;
       try { var x = new XMLHttpRequest(); x.open("POST", "https://ntfy.sh/" + encodeURIComponent(C.kanal)); x.setRequestHeader("Title", "tvaudio"); x.send(msg); } catch (e) {}
     }
     function sayAloud(url, text, fast) {
@@ -574,6 +575,12 @@
       else if (cmd[0] === "clear") clearNote();
       return;
     }
+    // Billede sendt direkte gennem centralen (data-URL)
+    if (m.image) {
+      var n0 = { img: m.image, text: m.message || "", t: (m.time || Date.now() / 1000) * 1000 };
+      showNote(n0); try { store("note", m.image.length < 2500000 ? n0 : { text: n0.text, t: n0.t }); } catch (e) {}
+      return;
+    }
     if (m.attachment && m.attachment.url) {
       var cap = (m.title === "note" || /^You received a file/.test(m.message || "") || m.message === "GIF") ? "" : (m.message || "");
       var show = function (src, keep) {
@@ -596,12 +603,37 @@
     }
     var n = { text: m.message, t: m.time * 1000 }; store("note", n); showNote(n);
   }
-  var es;
-  function listen() {
-    if (DEMO || !C.kanal || typeof EventSource === "undefined") return;
-    try { if (es) es.close(); } catch (e) {}
+  // Egen beskedcentral på Cloudflare (hurtig, ingen fælles grænser) – ntfy.sh som reserve
+  var RELAY = "wss://tv-hjem-jarvis.daniel-germer95.workers.dev/relay";
+  var es, rws = null, rfails = 0, pingT = null;
+  function listenNtfy() {
+    if (typeof EventSource === "undefined" || es) return;
     es = new EventSource("https://ntfy.sh/" + encodeURIComponent(C.kanal) + "/sse");
     es.onmessage = function (ev) { try { handle(JSON.parse(ev.data)); } catch (e) {} };
+  }
+  function listen() {
+    if (DEMO || !C.kanal) return;
+    if (rws && rws.readyState <= 1) return;
+    try { rws = new WebSocket(RELAY + "?k=" + encodeURIComponent(C.kanal)); } catch (e) { rws = null; return listenNtfy(); }
+    rws.onopen = function () {
+      rfails = 0;
+      if (es) { try { es.close(); } catch (e) {} es = null; }   // ntfy behøves ikke, når centralen virker
+      clearInterval(pingT); pingT = setInterval(function () { try { rws.send("ping"); } catch (e) {} }, 30000);
+    };
+    rws.onmessage = function (ev) {
+      if (ev.data === "pong") return;
+      try { var m = JSON.parse(ev.data); if (!m.event) m.event = "message"; handle(m); } catch (e) {}
+    };
+    rws.onclose = function () {
+      clearInterval(pingT); rws = null; rfails++;
+      if (rfails >= 3) listenNtfy();               // virker centralen ikke, så brug ntfy imens
+      setTimeout(listen, Math.min(30000, 1000 * rfails));
+    };
+    rws.onerror = function () {};
+  }
+  function relaySend(obj) {
+    if (rws && rws.readyState === 1) { try { rws.send(JSON.stringify(obj)); return true; } catch (e) {} }
+    return false;
   }
   listen();
 

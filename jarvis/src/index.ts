@@ -9,6 +9,29 @@ export interface Env {
   TMDB_TOKEN?: string;       // valgfri: TMDB "API Read Access Token" til filmopslag
   ELEVENLABS_API_KEY?: string; // valgfri: stemme fra ElevenLabs
   ELEVENLABS_VOICE_ID?: string; // valgfri: hvilken stemme (standard: "Daniel", britisk mand)
+  ROOM: DurableObjectNamespace; // beskedcentral mellem mobil og TV
+}
+
+// Beskedcentral: mobil og TV holder hver en åben forbindelse, og alt der sendes
+// videresendes straks til de andre. Erstatter ntfy.sh (hurtigere og uden fælles grænser).
+export class Room {
+  state: DurableObjectState;
+  constructor(state: DurableObjectState) { this.state = state; }
+  async fetch(req: Request): Promise<Response> {
+    if (req.headers.get("Upgrade") === "websocket") {
+      const pair = new WebSocketPair();
+      this.state.acceptWebSocket(pair[1]);
+      return new Response(null, { status: 101, webSocket: pair[0] });
+    }
+    const msg = await req.text();
+    for (const ws of this.state.getWebSockets()) { try { ws.send(msg); } catch (e) { /* lukket */ } }
+    return new Response("ok");
+  }
+  async webSocketMessage(ws: WebSocket, data: string | ArrayBuffer) {
+    if (data === "ping") { ws.send("pong"); return; }
+    for (const o of this.state.getWebSockets()) if (o !== ws) { try { o.send(data); } catch (e) { /* lukket */ } }
+  }
+  async webSocketClose(ws: WebSocket) { try { ws.close(); } catch (e) { /* allerede lukket */ } }
 }
 
 const MODEL = "claude-opus-5-5";
@@ -84,6 +107,17 @@ export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     const origin = req.headers.get("Origin");
     if (req.method === "OPTIONS") return new Response(null, { headers: cors(origin) });
+
+    // Beskedcentralen: /relay (WebSocket for at lytte, POST for at sende). Nøglen i ?k= eller header.
+    const url = new URL(req.url);
+    if (url.pathname === "/relay") {
+      const key = url.searchParams.get("k") || req.headers.get("X-Jarvis-Key");
+      if (!env.JARVIS_KEY || key !== env.JARVIS_KEY) return json({ error: "Ikke tilladt" }, 401, origin);
+      const stub = env.ROOM.get(env.ROOM.idFromName("hjem"));
+      const r = await stub.fetch(req);
+      if (r.status === 101) return r;
+      return new Response(await r.text(), { status: r.status, headers: cors(origin) });
+    }
     if (req.method !== "POST") return json({ error: "Kun POST" }, 405, origin);
 
     // Kun familiens app må bruge serveren

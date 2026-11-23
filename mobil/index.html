@@ -196,7 +196,7 @@
 </style>
 </head>
 <body>
-  <header><h1>TV Hjem <small style="font-size:11px;opacity:.45;font-weight:500">v54</small></h1><span class="pill" id="status">● Klar</span></header>
+  <header><h1>TV Hjem <small style="font-size:11px;opacity:.45;font-weight:500">v55</small></h1><span class="pill" id="status">● Klar</span></header>
 
   <div class="tabs">
     <button data-tab="fjern" class="on">Fjernb.</button>
@@ -358,10 +358,49 @@ var NTFY = "https://ntfy.sh/" + encodeURIComponent(KANAL);
 var $ = function (s) { return document.querySelector(s); };
 function toast(m) { var t = $("#toast"); t.textContent = m; t.classList.add("on"); clearTimeout(t._t); t._t = setTimeout(function () { t.classList.remove("on"); }, 2200); }
 function status(ok, m) { var s = $("#status"); s.textContent = "● " + m; s.style.color = ok ? "#6ff0a8" : "#ff8a8a"; s.style.background = ok ? "rgba(60,220,130,.15)" : "rgba(255,90,90,.15)"; }
-function post(body, headers) {
-  status(true, "Sender…");
+// ---------- Beskedcentral: egen relay på Jarvis-serveren (hurtig), ntfy.sh som reserve ----------
+var relayWS = null, relayHandlers = [], relayRetry = 0;
+function relayBase() {
+  var u = ""; try { u = (localStorage.getItem("jarvisUrl") || "").trim(); } catch (e) {}
+  if (!u) return null; try { return new URL("/relay", u).href; } catch (e) { return null; }
+}
+function relayConnect() {
+  var b = relayBase(); if (!b || relayWS) return;
+  try { relayWS = new WebSocket(b.replace(/^http/, "ws") + "?k=" + encodeURIComponent(KANAL)); } catch (e) { relayWS = null; return; }
+  var ping;
+  relayWS.onopen = function () { relayRetry = 0; ping = setInterval(function () { try { relayWS.send("ping"); } catch (e) {} }, 30000); };
+  relayWS.onmessage = function (ev) {
+    if (ev.data === "pong") return;
+    var m; try { m = JSON.parse(ev.data); } catch (e) { return; }
+    relayHandlers.forEach(function (h) { try { h(m); } catch (e) {} });
+  };
+  relayWS.onclose = function () { clearInterval(ping); relayWS = null; if (!document.hidden) setTimeout(relayConnect, Math.min(15000, 1000 * ++relayRetry)); };
+  relayWS.onerror = function () {};
+}
+document.addEventListener("visibilitychange", function () { if (!document.hidden) relayConnect(); });
+setTimeout(relayConnect, 500);
+function relayPost(obj) {
+  obj.event = "message"; obj.time = Math.floor(Date.now() / 1000);
+  if (relayWS && relayWS.readyState === 1) { try { relayWS.send(JSON.stringify(obj)); return Promise.resolve(true); } catch (e) {} }
+  var b = relayBase(); if (!b) return Promise.resolve(false);
+  return fetch(b, { method: "POST", headers: { "X-Jarvis-Key": KANAL }, body: JSON.stringify(obj) })
+    .then(function (r) { return r.ok; }).catch(function () { return false; });
+}
+function blobToDataURL(b) { return new Promise(function (res, rej) { var r = new FileReader(); r.onload = function () { res(r.result); }; r.onerror = rej; r.readAsDataURL(b); }); }
+function ntfyPost(body, headers) {
   return fetch(NTFY, { method: "POST", body: body, headers: headers || {} })
-    .then(function (r) { if (!r.ok) throw new Error(r.status === 429 ? "for mange beskeder i dag – prøv igen senere" : r.status); status(true, "Sendt"); return r; })
+    .then(function (r) { if (!r.ok) throw new Error(r.status === 429 ? "for mange beskeder i dag – prøv igen senere" : r.status); return r; });
+}
+// Sender en besked/tegning/billede til TV'et – via egen central, ellers ntfy
+function post(body, headers, caption) {
+  headers = headers || {}; status(true, "Sender…");
+  var title = headers.Title || "";
+  var prep = (typeof Blob !== "undefined" && body instanceof Blob)
+    ? blobToDataURL(body).then(function (d) { return { title: title || "note", message: caption || "", image: d }; })
+    : Promise.resolve({ title: title, message: String(body) });
+  return prep.then(function (obj) {
+    return relayPost(obj).then(function (ok) { return ok ? true : ntfyPost(body, headers); });
+  }).then(function (r) { status(true, "Sendt"); return r; })
     .catch(function (e) { status(false, "Fejl"); toast("Kunne ikke sende (" + e.message + ")"); throw e; });
 }
 
@@ -475,11 +514,8 @@ $("#sendTxt").onclick = function () {
   var t = $("#txt").value.trim();
   if (photoBlob) {
     // Teksten sendes med i adressen, så æ/ø/å og emojis kommer rigtigt igennem
-    var url = NTFY + "?title=photo&filename=" + photoName + (t ? "&message=" + encodeURIComponent(t) : "");
-    status(true, "Sender billede…");
-    return fetch(url, { method: "PUT", body: photoBlob })
-      .then(function (r) { if (!r.ok) throw new Error(r.status); status(true, "Sendt"); toast("Billedet er sendt til TV'et 📷"); clearPhoto(); $("#txt").value = ""; })
-      .catch(function (e) { status(false, "Fejl"); toast("Kunne ikke sende billedet (" + e.message + ")"); });
+    return post(photoBlob, { "Title": "photo" }, t)
+      .then(function () { toast("Billedet er sendt til TV'et 📷"); clearPhoto(); $("#txt").value = ""; }).catch(function () {});
   }
   if (!t) return toast("Skriv noget eller vælg et billede");
   post(t).then(function () { toast("Sendt til TV'et 💬"); $("#txt").value = ""; });
@@ -651,7 +687,7 @@ var RC = (function () {
   // Hjem-knappen: gå til Hjem og luk Jarvis-skærmen på TV'et
   $("#hjemApp").onclick = function () {
     openHjem();
-    fetch(NTFY, { method: "POST", body: JSON.stringify({ state: "close" }), headers: { "Title": "jarvis" } }).catch(function () {});
+    relayPost({ title: "jarvis", message: JSON.stringify({ state: "close" }) }).then(function (ok) { if (!ok) fetch(NTFY, { method: "POST", body: JSON.stringify({ state: "close" }), headers: { "Title": "jarvis" } }).catch(function () {}); });
     if (window.jarvisEndLive) window.jarvisEndLive();
   };
   $("#openHome").onclick = openHjem;
@@ -678,7 +714,7 @@ var RC = (function () {
 
 // ---------- Automatisk opdatering: tjek om der er kommet en ny version ----------
 (function () {
-  var MINE = "54", last = 0;
+  var MINE = "55", last = 0;
   function check() {
     if (Date.now() - last < 60000) return; last = Date.now();
     fetch("version.txt?t=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.ok ? r.text() : ""; }).then(function (v) {
@@ -788,9 +824,9 @@ var RC = (function () {
     var body = JSON.stringify(o);
     if (body === lastTV && Date.now() - lastTVt < 20000) return Promise.resolve();
     lastTV = body; lastTVt = Date.now();
-    return fetch(NTFY, { method: "POST", body: body, headers: { "Title": "jarvis" } }).then(function (r) {
-      if (r.status === 429) console.warn("ntfy: for mange beskeder lige nu");
-    }).catch(function () {});
+    return relayPost({ title: "jarvis", message: body }).then(function (ok) {
+      if (!ok) return fetch(NTFY, { method: "POST", body: body, headers: { "Title": "jarvis" } }).catch(function () {});
+    });
   }
   function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
   function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
@@ -953,15 +989,17 @@ var RC = (function () {
   // Hvad siger Jarvis lige nu? (bruges til at sortere hans egen stemme fra)
   var sayText = "", sayUntil = 0, tvStarted = false, tvWaitT = null, tvES = null;
   // TV'et sender "start:<sek>" og "end", når det taler (se tv-app)
+  function onTvAudio(m) {
+    if (!m || m.title !== "tvaudio" || !m.message) return;
+    if (m.message.indexOf("start") === 0) { tvStarted = true; sayUntil = Date.now() + (+m.message.split(":")[1] || 8) * 1000 + 400; }
+    else if (m.message === "end") sayUntil = Math.min(sayUntil, Date.now() + 500);
+  }
+  relayHandlers.push(onTvAudio);
   function listenTV() {
+    relayConnect();
     if (tvES || typeof EventSource === "undefined") return;
-    tvES = new EventSource(NTFY + "/sse");
-    tvES.onmessage = function (ev) {
-      var m; try { m = JSON.parse(ev.data); } catch (e) { return; }
-      if (m.title !== "tvaudio" || !m.message) return;
-      if (m.message.indexOf("start") === 0) { tvStarted = true; sayUntil = Date.now() + (+m.message.split(":")[1] || 8) * 1000 + 400; }
-      else if (m.message === "end") sayUntil = Math.min(sayUntil, Date.now() + 500);
-    };
+    tvES = new EventSource(NTFY + "/sse");   // reserve, hvis TV'et bruger ntfy
+    tvES.onmessage = function (ev) { var m; try { m = JSON.parse(ev.data); } catch (e) { return; } onTvAudio(m); };
   }
   function jSaying() { return Date.now() < sayUntil; }
   function words(t) { return (t || "").toLowerCase().replace(/[^a-zæøå0-9 ]/g, " ").split(/\s+/).filter(Boolean); }
