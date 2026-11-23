@@ -149,6 +149,15 @@
   #indst .lbl input, #indst .lbl select { width:100%; box-sizing:border-box; }
   #indst select { width:100%; padding:12px 14px; border-radius:12px; border:1px solid var(--line); background:rgba(0,0,0,.25); color:#fff; font-size:16px; font-family:inherit; }
   .tabs button[data-tab="indst"] { flex:0 0 46px; }
+  .jfab { position:fixed; right:18px; bottom:calc(18px + env(safe-area-inset-bottom)); width:68px; height:68px; border-radius:50%; border:0; z-index:50; cursor:pointer;
+    background:radial-gradient(circle at 40% 35%, #8fb0ff, #5b8cff 55%, #3346b8); box-shadow:0 6px 24px rgba(60,100,255,.55); }
+  .jfab span { position:absolute; left:50%; top:50%; width:16px; height:26px; margin:-17px 0 0 -8px; border-radius:8px; background:#fff; }
+  .jfab span::after { content:""; position:absolute; left:-7px; top:14px; width:24px; height:16px; border:3px solid #fff; border-top:0; border-radius:0 0 16px 16px; }
+  .jfab.listen { animation:jpulse 1.1s ease-in-out infinite; }
+  .jfab.think { animation:jspin 1.4s linear infinite; background:conic-gradient(#5b8cff, #a99cff, #5b8cff); }
+  .jbub { position:fixed; right:96px; bottom:calc(28px + env(safe-area-inset-bottom)); max-width:calc(100% - 120px); z-index:50; padding:10px 14px; border-radius:16px;
+    background:rgba(20,24,48,.95); border:1px solid var(--line); font-size:14px; line-height:1.35; display:none; }
+  .jbub.on { display:block; }
   #jarvis { gap:10px; }
   .jvoice { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:22px; text-align:center; min-height:0; }
   .jstatus { font-size:20px; font-weight:700; }
@@ -196,13 +205,12 @@
 </style>
 </head>
 <body>
-  <header><h1>TV Hjem <small style="font-size:11px;opacity:.45;font-weight:500">v55</small></h1><span class="pill" id="status">● Klar</span></header>
+  <header><h1>TV Hjem <small style="font-size:11px;opacity:.45;font-weight:500">v56</small></h1><span class="pill" id="status">● Klar</span></header>
 
   <div class="tabs">
     <button data-tab="fjern" class="on">Fjernb.</button>
     <button data-tab="apps">Apps</button>
     <button data-tab="besked">Besked</button>
-    <button data-tab="jarvis">Jarvis</button>
     <button data-tab="indst" aria-label="Indstillinger">⚙️</button>
   </div>
 
@@ -280,26 +288,6 @@
     <button class="ghost" id="clearNote">Fjern besked fra TV'et</button>
   </section>
 
-  <section class="panel" id="jarvis">
-    <div class="jvoice" id="jvoice">
-      <div class="jstatus" id="jstatus">Tryk og tal til Jarvis</div>
-      <button class="jmic" id="jmic" aria-label="Tal til Jarvis"><span></span></button>
-      <div class="jheard" id="jheard"></div>
-      <div class="jlast" id="jlast">Tryk én gang – så lytter Jarvis, når han ikke selv taler. Tryk mens han taler for at afbryde. Sig “tak” for at slutte.</div>
-    </div>
-    <div class="jtext" id="jtext">
-      <div class="jlog" id="jlog"></div>
-      <div class="jrow">
-        <input id="jin" placeholder="Skriv til Jarvis…" autocomplete="off" enterkeyhint="send">
-        <button class="jsend" id="jsend" aria-label="Send">➤</button>
-      </div>
-    </div>
-    <div class="jopts">
-      <button class="jlink" id="jmode">⌨️ Skriv i stedet</button>
-      <button class="jlink" id="jclose">✕ Luk på TV'et</button>
-    </div>
-  </section>
-
   <section class="panel" id="indst">
     <h2>📺 TV'et</h2>
     <div class="setup on" id="setup">
@@ -327,11 +315,9 @@
           <option value="claude-sonnet-5-5">Claude Sonnet 5.5 – mellem</option>
           <option value="claude-haiku-5-5">Claude Haiku 5.5 – hurtigst</option>
         </select></label>
-      <label class="chk"><input type="checkbox" id="jspeak"> Læs svar højt</label>
-      <label class="chk"><input type="checkbox" id="jtv"> Stemmen kommer fra TV'et</label>
+      <label class="chk"><input type="checkbox" id="jspeak"> Jarvis taler højt fra TV'et</label>
       <label class="chk"><input type="checkbox" id="jfast"> Hurtig stemme (ElevenLabs Flash)</label>
-      <label class="chk"><input type="checkbox" id="jbrief"> Briefing når Jarvis åbnes (højst hver 3. time)</label>
-      <label class="lbl">TMDB-nøgle (valgfri – ligger normalt på serveren)<input id="jtmdb" placeholder="API Read Access Token" autocomplete="off"></label>
+      <label class="chk"><input type="checkbox" id="jbrief"> Briefing når Hjem åbnes på TV'et (højst hver 3. time)</label>
     </div>
   </section>
 
@@ -340,7 +326,9 @@
     <button class="send" id="openHome">Åbn startskærmen på TV'et</button>
   </section>
 
-  <div id="toast"></div>
+  <div class="jbub" id="jbub"></div>
+<button class="jfab" id="jfab" aria-label="Tal til Jarvis"><span></span></button>
+<div id="toast"></div>
 
 <script>
 // Kanal-nøglen står IKKE i koden (siden er offentlig). Den gives med i linket:
@@ -407,13 +395,10 @@ function post(body, headers, caption) {
 // Faner
 document.querySelectorAll(".tabs button").forEach(function (b) {
   b.onclick = function () {
-    var wasJ = document.querySelector("#jarvis").classList.contains("on") && b.dataset.tab !== "jarvis";
-    if (b.dataset.tab === "jarvis" && document.querySelector("#jarvis").classList.contains("on")) return;
     document.querySelectorAll(".tabs button").forEach(function (x) { x.classList.toggle("on", x === b); });
     document.querySelectorAll(".panel").forEach(function (p) { p.classList.toggle("on", p.id === b.dataset.tab); });
     if (b.dataset.tab === "besked") resize();
     if (b.dataset.tab === "apps") fitTiles();
-    if (window.jarvisTab) { if (b.dataset.tab === "jarvis") jarvisTab(true); else if (wasJ) jarvisTab(false); }
   };
 });
 
@@ -714,7 +699,7 @@ var RC = (function () {
 
 // ---------- Automatisk opdatering: tjek om der er kommet en ny version ----------
 (function () {
-  var MINE = "55", last = 0;
+  var MINE = "56", last = 0;
   function check() {
     if (Date.now() - last < 60000) return; last = Date.now();
     fetch("version.txt?t=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.ok ? r.text() : ""; }).then(function (v) {
@@ -727,417 +712,120 @@ var RC = (function () {
   setTimeout(check, 3000);
 })();
 
-// ---------- Jarvis ----------
+// ---------- Jarvis: bor på TV'et. Telefonen er bare hans mikrofon ----------
 (function () {
-  var hist = [], busy = false, lastAct = "", pendingShow = null;
-  var APPS_K = ["drtv","tv2play","netflix","hbomax","prime","disney","viaplay","skyshow","appletv","youtube","spotify","playstation","hjem"];
-  var KEYS_K = ["KEY_VOLUP","KEY_VOLDOWN","KEY_MUTE","KEY_CHUP","KEY_CHDOWN","KEY_UP","KEY_DOWN","KEY_LEFT","KEY_RIGHT","KEY_ENTER","KEY_RETURN",
-    "KEY_HOME","KEY_MENU","KEY_SOURCE","KEY_PLAY_BACK","KEY_POWER","KEY_0","KEY_1","KEY_2","KEY_3","KEY_4","KEY_5","KEY_6","KEY_7","KEY_8","KEY_9"];
-  function obj(props, req) { return { type: "object", properties: props, required: req, additionalProperties: false }; }
-  // Værktøjerne sendes med til serveren, så nye evner ikke kræver at serveren opdateres
-  var TOOLS = [
-    { name: "open_app", strict: true, description: "Åbner en app på stue-TV'et. 'hjem' er familiens egen startskærm. 'playstation' skifter til PS5.",
-      input_schema: obj({ app: { type: "string", enum: APPS_K } }, ["app"]) },
-    { name: "press_keys", strict: true, description: "Sender tastetryk som fra fjernbetjeningen. Gentag en tast for flere trin (fx 5 × KEY_VOLUP).",
-      input_schema: obj({ keys: { type: "array", items: { type: "string", enum: KEYS_K } } }, ["keys"]) },
-    { name: "send_tv_message", strict: true, description: "Viser en kort tekstbesked i beskedfeltet på TV'ets Hjem-skærm.",
-      input_schema: obj({ text: { type: "string" } }, ["text"]) },
-    { name: "show_suggestions", strict: true,
-      description: "Viser 3-6 film- eller serieforslag med plakater stort på TV'et. Brug det altid, når brugeren vil have noget at se. service er den danske streamingtjeneste titlen typisk ligger på (Netflix, HBO Max, Prime Video, Disney+, Viaplay, SkyShowtime, Apple TV, DR TV, TV 2 Play).",
-      input_schema: obj({ heading: { type: "string" }, items: { type: "array", items: obj({
-        title: { type: "string" }, year: { type: "integer" }, service: { type: "string" }, why: { type: "string" } }, ["title", "year", "service", "why"]) } },
-        ["heading", "items"]) },
-    { name: "get_weather", strict: true,
-      description: "Henter vejret i Aarhus: nu, de næste 24 timer og 4 dage frem, inkl. solop- og nedgang. Brug det til vejr- og MC-spørgsmål.",
-      input_schema: obj({}, []) }
-  ];
-  // Ingen websøgning for nu – Jarvis bruger kun sine egne værktøjer
-  function allTools() { return TOOLS; }
-  function context() {
-    var en = (lsGet("jarvisLang") || "da") === "en";
-    var persona = "PERSONLIGHED (gælder altid): Du er Jarvis – en kultiveret, britisk AI-butler i stil med Tony Starks assistent. " +
-      "Formel, rolig og elegant, med tør, underspillet humor og et let ironisk glimt i øjet. Du kalder brugeren 'sir'. " +
-      "Du er loyal og effektiv: meld kort, hvad du har gjort, gerne med én lille spydig bemærkning. " +
-      "Er brugeren ved at gøre noget uklogt (fx køre motorcykel i frost), så nævner du det diskret og høfligt bekymret. " +
-      "Citer aldrig replikker fra filmene ordret – ram tonen med dine egne ord. Hold svar til 1–3 korte sætninger, for de læses højt. ";
-    return persona + (en ? "SPROG: Brugeren har valgt engelsk. Svar ALTID på britisk engelsk, også når brugeren taler dansk. Titler, tjenester og stednavne beholdes som de er. "
-      : "SPROG: Svar på dansk, men behold den britiske butler-tone (fx 'sir'). ") +
-      "Du kan IKKE se TV-skærmen. Navigér derfor ikke blindt rundt i menuer med piletaster; åbn hellere apps direkte og sig ærligt, hvis noget kræver at brugeren selv vælger på skærmen. " +
-      "Når brugeren vil se noget, så brug show_suggestions og nævn kort forslagene; sig at hvilken tjeneste en titel ligger på kan have ændret sig. " +
-      "Brugeren kører en fabriksny Honda CB650R (naked bike). MC-regler: under 5° = nej (dækkene har intet greb), 5–10° = måske (kolde dæk), regnrisiko ≥60% eller vindstød ≥15 m/s = nej, frost de seneste dage = saltede veje (dårligt for en ny cykel), kun i dagslys. " +
-      "Familien har: DR TV, TV 2 Play, Netflix, HBO Max, Prime Video, Disney+, Viaplay, SkyShowtime, Apple TV, YouTube, Spotify og en PS5. " +
-      "Du har ikke adgang til internettet eller nyheder – sig det høfligt, hvis du bliver spurgt. " +
-      "Tidspunkt nu: " + new Date().toLocaleString("da-DK") + ". " + (lastAct ? "Seneste handling: " + lastAct + "." : "");
-  }
-  // TMDB: søg titlen og find danske streamingtjenester (abonnement først)
-  function tmdb(path, key) {
-    if (!key) {
-      // Ingen nøgle på telefonen: spørg Jarvis-serveren, som har nøglen
-      return fetch((lsGet("jarvisUrl") || "").trim(), { method: "POST", headers: { "Content-Type": "application/json", "X-Jarvis-Key": KANAL },
-        body: JSON.stringify({ tmdb: path }) }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); });
-    }
-    var url = "https://api.themoviedb.org/3" + path, h = { accept: "application/json" };
-    if (key.length > 40) h.Authorization = "Bearer " + key; else url += (url.indexOf("?") < 0 ? "?" : "&") + "api_key=" + encodeURIComponent(key);
-    return fetch(url, { headers: h }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); });
-  }
-  function enrichTMDB(it, key) {
-    return tmdb("/search/multi?language=da-DK&region=DK&query=" + encodeURIComponent(it.title), key).then(function (res) {
-      var list = (res.results || []).filter(function (r) { return r.media_type === "movie" || r.media_type === "tv"; }), best = null;
-      list.forEach(function (r) {
-        var y = +((r.release_date || r.first_air_date || "").slice(0, 4));
-        if (!best || (it.year && Math.abs(y - it.year) < Math.abs(+((best.release_date || best.first_air_date || "").slice(0, 4)) - it.year))) best = r;
-      });
-      if (!best) return false;
-      if (best.poster_path) it.poster = "https://image.tmdb.org/t/p/w342" + best.poster_path;
-      return tmdb("/" + best.media_type + "/" + best.id + "/watch/providers", key).then(function (wp) {
-        var dk = (wp.results || {}).DK || {}, prov = (dk.flatrate || []).concat(dk.free || [], dk.ads || []);
-        it.verified = true;
-        if (prov.length) { it.service = prov[0].provider_name; if (prov[0].logo_path) it.logo = "https://image.tmdb.org/t/p/w92" + prov[0].logo_path; }
-        else if ((dk.rent || dk.buy || []).length) it.service = "Leje/køb";
-        else it.service = "";
-        return true;
-      });
-    });
-  }
-  function findPoster(title, year) {
-    return new Promise(function (resolve) {
-      var cb = "__pp" + Math.random().toString(36).slice(2), sc = document.createElement("script"), done = false;
-      function fin(u) { if (done) return; done = true; delete window[cb]; if (sc.parentNode) sc.parentNode.removeChild(sc); resolve(u); }
-      window[cb] = function (res) {
-        var list = (res && res.results) || [], best = null;
-        list.forEach(function (r) {
-          var y = +(r.releaseDate || "").slice(0, 4);
-          if (r.artworkUrl100 && (!best || (year && Math.abs(y - year) < Math.abs(+(best.releaseDate || "").slice(0, 4) - year)))) best = r;
-        });
-        fin(best ? best.artworkUrl100.replace(/\/\d+x\d+bb\./, "/400x600bb.") : null);
-      };
-      sc.onerror = function () { fin(null); };
-      sc.src = "https://itunes.apple.com/search?media=movie&country=dk&limit=6&term=" + encodeURIComponent(title) + "&callback=" + cb;
-      document.head.appendChild(sc);
-      setTimeout(function () { fin(null); }, 4000);
-    });
-  }
-  // Jarvis-status til TV'et: stille (ingen "Fejl" hvis en enkelt besked ikke når frem),
-  // og samme status sendes ikke to gange lige efter hinanden
-  var lastTV = "", lastTVt = 0;
-  function toTV(o) {
-    var body = JSON.stringify(o);
-    if (body === lastTV && Date.now() - lastTVt < 20000) return Promise.resolve();
-    lastTV = body; lastTVt = Date.now();
-    return relayPost({ title: "jarvis", message: body }).then(function (ok) {
-      if (!ok) return fetch(NTFY, { method: "POST", body: body, headers: { "Title": "jarvis" } }).catch(function () {});
-    });
-  }
   function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
   function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  // Indstillinger (⚙️)
   $("#jurl").value = lsGet("jarvisUrl") || "";
-  $("#jurl").onchange = function () { lsSet("jarvisUrl", this.value.trim()); };
-  $("#jmodel").value = lsGet("jarvisModel") || "claude-opus-5-5";
-  $("#jmodel").onchange = function () { lsSet("jarvisModel", this.value); hist = []; };
-  $("#jbrief").checked = lsGet("jarvisBrief") !== "0";
-  $("#jbrief").onchange = function () { lsSet("jarvisBrief", this.checked ? "1" : "0"); if (this.checked) lsSet("jarvisBriefAt", "0"); };
-  $("#jfast").checked = lsGet("jarvisFast") === "1";
-  $("#jfast").onchange = function () { lsSet("jarvisFast", this.checked ? "1" : "0"); };
-  $("#jlang").value = lsGet("jarvisLang") || "da";
-  $("#jlang").onchange = function () { lsSet("jarvisLang", this.value); hist = []; };
-  $("#jtmdb").value = lsGet("tmdbKey") || "";
-  $("#jtmdb").onchange = function () { lsSet("tmdbKey", this.value.trim()); };
-  $("#jspeak").checked = lsGet("jarvisSpeak") !== "0"; // tale er standard
-  $("#jtv").checked = lsGet("jarvisTvVoice") !== "0"; // stemmen kommer fra TV'et som standard
-  $("#jtv").onchange = function () { lsSet("jarvisTvVoice", this.checked ? "1" : "0"); };
-  function tvVoice() { return $("#jtv").checked; }
-  $("#jspeak").onchange = function () { lsSet("jarvisSpeak", this.checked ? "1" : "0"); };
+  $("#jurl").onchange = function () { lsSet("jarvisUrl", this.value.trim()); relayConnect(); };
+  function bind(id, k, def, isChk) {
+    var el = $("#" + id), v = lsGet(k);
+    if (isChk) { el.checked = v == null ? def : v === "1"; el.onchange = function () { lsSet(k, this.checked ? "1" : "0"); sendOpts(); }; }
+    else { el.value = v || def; el.onchange = function () { lsSet(k, this.value); sendOpts(); }; }
+  }
+  bind("jmodel", "jarvisModel", "claude-opus-5-5");
+  bind("jlang", "jarvisLang", "da");
+  bind("jspeak", "jarvisSpeak", true, true);
+  bind("jfast", "jarvisFast", false, true);
+  bind("jbrief", "jarvisBrief", true, true);
+  function opts() {
+    return { model: $("#jmodel").value, lang: $("#jlang").value, voice: $("#jspeak").checked, fast: $("#jfast").checked, brief: $("#jbrief").checked };
+  }
+  function toTV(o) { o.opts = opts(); return relayPost({ title: "jarvis-ask", message: JSON.stringify(o) }); }
+  function sendOpts() { toTV({}); }
 
-  function say(text, cls) {
-    if (cls === "bot" && text !== "…" || cls === "err") $("#jlast").textContent = text;
-    var d = document.createElement("div"); d.className = "jmsg " + cls; d.textContent = text;
-    $("#jlog").appendChild(d); $("#jlog").scrollTop = 1e9; return d;
+  var btn = $("#jfab"), bub = $("#jbub");
+  function show(mode, msg) {
+    btn.className = "jfab" + (mode ? " " + mode : "");
+    bub.textContent = msg || ""; bub.classList.toggle("on", !!msg);
   }
-  var speaking = null;
-  function speak(text) {
-    if (!$("#jspeak").checked) return;
-    sayText = text;
-    if (tvVoice()) {
-      // Vent på TV'ets signal om, hvornår det taler. Kommer det ikke, så lyt igen efter lidt tid.
-      sayUntil = Date.now() + 12000; tvStarted = false;
-      clearTimeout(tvWaitT); tvWaitT = setTimeout(function () { if (!tvStarted) sayUntil = Date.now(); }, 9000);
-      return;
+  // TV'et fortæller, hvad Jarvis laver, og hvornår han taler
+  var sayUntil = 0, sayText = "", thinking = false, hideT;
+  relayHandlers.push(function (m) {
+    if (m.title === "tvaudio") {
+      if (m.message.indexOf("start") === 0) sayUntil = Date.now() + (+m.message.split(":")[1] || 8) * 1000 + 400;
+      else if (m.message === "end") sayUntil = Math.min(sayUntil, Date.now() + 500);
+      status(); return;
     }
-    sayUntil = Date.now() + 2500 + text.length * 75;
-    if (!window.speechSynthesis) return;
-    var u = new SpeechSynthesisUtterance(text); u.lang = (lsGet("jarvisLang") || "da") === "en" ? "en-GB" : "da-DK"; speechSynthesis.cancel();
-    speaking = new Promise(function (res) {
-      u.onend = u.onerror = function () { sayUntil = Date.now(); res(); };
-      setTimeout(res, 2000 + text.length * 90); // sikkerhed, hvis onend aldrig kommer
-    });
-    speechSynthesis.speak(u);
-  }
-  function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
-
-  // Udfører Jarvis' værktøjer her på telefonen
-  async function runTool(t) {
-    var inp = t.input || {};
-    if (t.name === "open_app") {
-      if (!RC.configured()) return "Fejl: fjernbetjeningen er ikke sat op";
-      if (!RC.openApp(inp.app)) return "Fejl: kender ikke app-ID for " + inp.app;
-      say("📺 Åbner " + inp.app, "act"); lastAct = "åbnede " + inp.app + " kl. " + new Date().toTimeString().slice(0, 5); return "Kommandoen er sendt til TV'et";
-    }
-    if (t.name === "press_keys") {
-      if (!RC.configured()) return "Fejl: fjernbetjeningen er ikke sat op";
-      var keys = (inp.keys || []).slice(0, 30);
-      for (var i = 0; i < keys.length; i++) { RC.key(keys[i]); await wait(180); }
-      say("🎛️ " + keys.length + " tastetryk", "act"); return "Sendt " + keys.length + " tastetryk";
-    }
-    if (t.name === "get_weather") {
-      try {
-        var w = await fetch("https://api.open-meteo.com/v1/forecast?latitude=56.1567&longitude=10.2108" +
-          "&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,wind_gusts_10m,precipitation" +
-          "&hourly=temperature_2m,precipitation_probability,wind_gusts_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_gusts_10m_max,sunrise,sunset" +
-          "&past_days=3&forecast_days=4&timezone=Europe%2FCopenhagen&wind_speed_unit=ms").then(function (r) { return r.json(); });
-        var now = new Date(), h0 = w.hourly.time.indexOf(w.current.time.slice(0, 13) + ":00"), hrs = [];
-        for (var k = 0; k < 24 && h0 >= 0; k += 3) hrs.push(w.hourly.time[h0 + k].slice(11, 16) + " " + Math.round(w.hourly.temperature_2m[h0 + k]) + "° regn" + w.hourly.precipitation_probability[h0 + k] + "% stød" + Math.round(w.hourly.wind_gusts_10m[h0 + k]));
-        var days = w.daily.time.map(function (d, i) { return d + ": " + Math.round(w.daily.temperature_2m_min[i]) + "–" + Math.round(w.daily.temperature_2m_max[i]) + "°, regnrisiko " + w.daily.precipitation_probability_max[i] + "%, " + w.daily.precipitation_sum[i] + " mm, stød " + Math.round(w.daily.wind_gusts_10m_max[i]) + " m/s, sol " + w.daily.sunrise[i].slice(11) + "–" + w.daily.sunset[i].slice(11); });
-        say("🌤️ Henter vejret", "act");
-        return "Aarhus nu: " + Math.round(w.current.temperature_2m) + "° (føles " + Math.round(w.current.apparent_temperature) + "°), vind " + Math.round(w.current.wind_speed_10m) + " m/s (stød " + Math.round(w.current.wind_gusts_10m) + "). " +
-          "Næste 24 t: " + hrs.join("; ") + ". Dage (de første 3 er fortid, til salt-vurdering): " + days.join(" | ");
-      } catch (e) { return "Fejl: kunne ikke hente vejret"; }
-    }
-    if (t.name === "show_suggestions") {
-      pendingShow = { heading: String(inp.heading || "").slice(0, 60), items: (inp.items || []).slice(0, 6).map(function (it) {
-        return { title: String(it.title || "").slice(0, 60), year: it.year, service: String(it.service || "").slice(0, 30), why: String(it.why || "").slice(0, 70) }; }) };
-      // Slå hver titel op: rigtig plakat, og hvor den faktisk kan ses i Danmark (TMDB/JustWatch)
-      var key = (lsGet("tmdbKey") || "").trim();
-      await Promise.all(pendingShow.items.map(function (it) {
-        return enrichTMDB(it, key).catch(function () { return false; }).then(function (ok) {
-          if (ok || it.poster) return;
-          return findPoster(it.title, it.year).then(function (u) { if (u) it.poster = u; });
-        }).catch(function () {});
-      }));
-      var facts = pendingShow.items.map(function (i) { return i.title + ": " + (i.verified ? (i.service || "ikke på streaming i DK lige nu") : "ukendt (ikke slået op)"); }).join("; ");
-      say("🎬 " + pendingShow.items.map(function (i) { return i.title; }).join(", "), "act");
-      lastAct = "viste forslag på TV'et: " + pendingShow.items.map(function (i) { return i.title; }).join(", ");
-      return "Forslagene vises på TV'et, når du har svaret. Slået op i TMDB (brug disse tjenester i dit svar, ikke dine egne gæt): " + facts;
-    }
-    if (t.name === "send_tv_message") {
-      try { await post(String(inp.text || "").slice(0, 300)); say("💬 Besked sendt til TV'et", "act"); return "Beskeden vises på TV'et"; }
-      catch (e) { return "Fejl: kunne ikke sende beskeden"; }
-    }
-    return "Fejl: ukendt værktøj";
-  }
-
-  function trim() {
-    // Hold historikken kort, men klip kun ved en almindelig brugerbesked
-    while (hist.length > 30) {
-      hist.shift();
-      while (hist.length && !(hist[0].role === "user" && typeof hist[0].content === "string")) hist.shift();
-    }
-  }
-
-  async function ask(text) {
-    var url = (lsGet("jarvisUrl") || "").trim();
-    if (!url) { say("Jarvis er ikke sat op endnu – indsæt serverens adresse under “Server” nederst.", "err"); return; }
-    hist.push({ role: "user", content: text }); trim();
-    var thinking = say("…", "bot"), finalText = ""; speaking = null;
-    pendingShow = null;
-    toTV({ state: "thinking", question: /^\[BRIEFING/.test(text) ? "Briefing" : text.slice(0, 200) });
-    try {
-      for (var round = 0; round < 8; round++) {
-        var r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json", "X-Jarvis-Key": KANAL },
-          body: JSON.stringify({ messages: hist, tools: allTools(), context: context(), model: lsGet("jarvisModel") || "claude-opus-5-5" }) });
-        var d = await r.json().catch(function () { return {}; });
-        if (!r.ok) throw new Error(d.error || ("HTTP " + r.status));
-        hist.push({ role: "assistant", content: d.content });
-        var txt = (d.content || []).filter(function (b) { return b.type === "text"; }).map(function (b) { return b.text; }).join("\n").trim();
-        if (txt) { finalText = txt; if (thinking) { thinking.remove(); thinking = null; } say(txt, "bot"); speak(txt); }
-        if (d.stop_reason === "refusal") { if (thinking) thinking.remove(); say("Det kan jeg desværre ikke hjælpe med.", "bot"); return; }
-        if (d.stop_reason === "pause_turn") continue;   // websøgning arbejder stadig – fortsæt
-        if (d.stop_reason !== "tool_use") break;
-        var uses = (d.content || []).filter(function (b) { return b.type === "tool_use"; }), results = [];
-        for (var i = 0; i < uses.length; i++) {
-          var out = await runTool(uses[i]);
-          results.push({ type: "tool_result", tool_use_id: uses[i].id, content: out, is_error: /^Fejl/.test(out) });
-        }
-        hist.push({ role: "user", content: results });
-      }
-      if (thinking) { thinking.remove(); say("Færdig.", "bot"); }
-      var show = { state: "answer", text: (finalText || "Færdig.").slice(0, 400) };
-      if (tvVoice()) { show.tts = (lsGet("jarvisUrl") || "").trim(); show.fast = lsGet("jarvisFast") === "1"; }
-      if (pendingShow) { show.heading = pendingShow.heading; show.items = pendingShow.items; }
-      toTV(show);
-    } catch (e) {
-      if (thinking) thinking.remove();
-      say("Kunne ikke nå Jarvis: " + e.message, "err");
-      // Fjern den ufuldstændige tur, så næste spørgsmål starter rent
-      while (hist.length && !(hist[hist.length - 1].role === "user" && typeof hist[hist.length - 1].content === "string")) hist.pop();
-      hist.pop();
-    }
-  }
-
-  // ---- Live-samtale: Jarvis lytter hele tiden, og du kan afbryde ham ----
-  var SR = window.SpeechRecognition || window.webkitSpeechRecognition, rec = null;
-  var live = false, buf = "", commitT = null, errs = 0, queued = null, lastFinalIdx = 0;
-  function setMic(mode, msg) {
-    $("#jmic").className = "jmic" + (mode ? " " + mode : "");
-    if (msg != null) $("#jstatus").textContent = msg;
-  }
-  function status() {
-    if (!live) return setMic("", "Tryk og tal til Jarvis");
-    if (busy) return setMic("think live", "Tænker… (du kan bare tale)");
-    if (jSaying()) return setMic("think live", "Jarvis taler – tryk for at afbryde");
-    setMic("listen", "Jeg lytter…");
-  }
-  // Hvad siger Jarvis lige nu? (bruges til at sortere hans egen stemme fra)
-  var sayText = "", sayUntil = 0, tvStarted = false, tvWaitT = null, tvES = null;
-  // TV'et sender "start:<sek>" og "end", når det taler (se tv-app)
-  function onTvAudio(m) {
-    if (!m || m.title !== "tvaudio" || !m.message) return;
-    if (m.message.indexOf("start") === 0) { tvStarted = true; sayUntil = Date.now() + (+m.message.split(":")[1] || 8) * 1000 + 400; }
-    else if (m.message === "end") sayUntil = Math.min(sayUntil, Date.now() + 500);
-  }
-  relayHandlers.push(onTvAudio);
-  function listenTV() {
-    relayConnect();
-    if (tvES || typeof EventSource === "undefined") return;
-    tvES = new EventSource(NTFY + "/sse");   // reserve, hvis TV'et bruger ntfy
-    tvES.onmessage = function (ev) { var m; try { m = JSON.parse(ev.data); } catch (e) { return; } onTvAudio(m); };
-  }
+    if (m.title !== "jarvis-out") return;
+    var d; try { d = JSON.parse(m.message); } catch (e) { return; }
+    if (d.state === "thinking") { thinking = true; }
+    else if (d.state === "answer") { thinking = false; sayText = d.text || ""; if (!live) flash("Jarvis: " + sayText); }
+    else if (d.state === "error") { thinking = false; flash("Jarvis: " + d.text); }
+    else if (d.state === "spoken") { sayUntil = 0; }
+    status();
+  });
+  function flash(t) { show(live ? "listen" : "", t); clearTimeout(hideT); hideT = setTimeout(function () { if (!live) show("", ""); }, 6000); }
   function jSaying() { return Date.now() < sayUntil; }
   function words(t) { return (t || "").toLowerCase().replace(/[^a-zæøå0-9 ]/g, " ").split(/\s+/).filter(Boolean); }
   function isEcho(t) {
     if (!jSaying() && Date.now() - sayUntil > 1500) return false;
     var w = words(t), j = words(sayText); if (!w.length) return true;
-    var hit = w.filter(function (x) { return j.indexOf(x) >= 0; }).length;
-    return hit / w.length >= 0.5;
+    return w.filter(function (x) { return j.indexOf(x) >= 0; }).length / w.length >= 0.5;
   }
-  function stopTalking() {
-    sayUntil = 0;
-    if (window.speechSynthesis) speechSynthesis.cancel();
-    toTV({ state: "stop" });
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition, rec = null;
+  var live = false, buf = "", commitT = null, errs = 0;
+  function status() {
+    if (!live) { if (!bub.classList.contains("on")) show("", ""); return; }
+    if (jSaying()) return show("think live", "Jarvis taler – tryk for at afbryde");
+    if (thinking) return show("think live", "Jarvis tænker…");
+    show("listen", "Jeg lytter… (sig “tak” for at slutte)");
   }
+  setInterval(function () { if (live) status(); }, 800);
   function endLive(msg) {
     live = false; clearTimeout(commitT); buf = "";
     if (rec) { try { rec.abort ? rec.abort() : rec.stop(); } catch (e) {} rec = null; }
-    $("#jheard").textContent = "";
-    setMic("", msg || "Tryk og tal til Jarvis");
+    show("", msg || ""); clearTimeout(hideT); if (msg) hideT = setTimeout(function () { show("", ""); }, 3000);
   }
-  function tapMic() {
-    if (live && jSaying()) { stopTalking(); return status(); }   // afbryd Jarvis
-    if (live) return endLive("Samtalen er slut – tryk for at tale igen");
-    unlockSpeech();
-    if (!SR) return typeFallback("Tale virker ikke her");
-    listenTV();
-    live = true; errs = 0; toTV({ state: "listening" }); startRec(); status();
+  function tap() {
+    if (!(lsGet("jarvisUrl") || "").trim()) { toast("Skriv Jarvis-serverens adresse under ⚙️"); return; }
+    if (live && jSaying()) { sayUntil = 0; toTV({ stop: true }); return status(); }
+    if (live) return endLive("Samtalen er slut");
+    if (!SR) { var t = prompt("Skriv til Jarvis"); if (t) toTV({ text: t }); return; }
+    relayConnect();
+    live = true; errs = 0; toTV({ listening: true }); startRec(); status();
   }
   function startRec() {
     if (!live || rec) return;
-    rec = new SR(); rec.lang = "da-DK"; rec.interimResults = true; rec.continuous = true; lastFinalIdx = 0;
+    rec = new SR(); rec.lang = "da-DK"; rec.interimResults = true; rec.continuous = true;
     rec.onresult = function (e) {
       errs = 0;
       // Mens Jarvis taler, lytter vi ikke (ellers hører telefonen hans stemme fra TV'et)
-      if (jSaying()) { buf = ""; clearTimeout(commitT); $("#jheard").textContent = ""; return; }
+      if (jSaying()) { buf = ""; clearTimeout(commitT); return; }
       var fin = "", interim = "";
       for (var i = e.resultIndex; i < e.results.length; i++) {
         var seg = e.results[i][0].transcript;
-        // Jarvis' egen stemme fra TV'et sorteres fra sætning for sætning
         if (isEcho(seg)) continue;
         if (e.results[i].isFinal) fin += seg + " "; else interim += seg;
       }
       if (fin) buf += fin;
-      var shown = (buf + interim).trim();
-      if (!shown) return;
-      $("#jheard").textContent = "“" + shown + "”";
-      // Når du holder en kort pause, sendes det, du har sagt
+      var shown = (buf + interim).trim(); if (!shown) return;
+      show("listen", "“" + shown + "”");
       clearTimeout(commitT);
       commitT = setTimeout(function () { commit((buf + interim).trim()); }, fin && !interim ? 550 : 1000);
     };
     rec.onerror = function (e) {
-      if (e.error === "not-allowed" || e.error === "service-not-allowed") { endLive(); return typeFallback("Giv adgang til mikrofonen"); }
+      if (e.error === "not-allowed" || e.error === "service-not-allowed") return endLive("Giv Safari adgang til mikrofonen");
       errs++;
     };
     rec.onend = function () {
       rec = null;
-      // iPhone stopper selv indimellem – start igen, så længe samtalen er i gang
       if (live && errs < 6 && !document.hidden) setTimeout(startRec, 250);
-      else if (live) endLive("Mikrofonen stoppede – tryk for at tale igen");
+      else if (live) endLive("Mikrofonen stoppede");
     };
     try { rec.start(); } catch (e) { rec = null; errs++; if (live && errs < 6) setTimeout(startRec, 500); }
   }
   function commit(t) {
-    buf = ""; $("#jheard").textContent = "";
-    // Genstart genkendelsen, så næste sætning starter på en frisk
+    buf = "";
     if (rec) { try { rec.stop(); } catch (e) {} }
     if (!t || isEcho(t)) return status();
-    if (/^(stop|tak|tak skal du have|farvel|det var det|det var alt|ikke mere|slut|thank you|goodbye)[.!]?$/i.test(t)) {
-      say(t, "me"); endLive("Samtalen er slut – tryk for at tale igen"); toTV({ state: "ready" }); return;
-    }
-    if (busy) { queued = t; return; }
-    run(t);
+    if (/^(stop|tak|tak skal du have|farvel|det var det|det var alt|ikke mere|slut|thank you|goodbye)[.!]?$/i.test(t)) return endLive("Samtalen er slut");
+    thinking = true; toTV({ text: t }); status();
   }
-  // iPhone taler kun højt, hvis det starter med et tryk – "lås op" med en tom sætning
-  var unlocked = false;
-  function unlockSpeech() {
-    if (!window.speechSynthesis) return;
-    speechSynthesis.cancel();
-    if (!unlocked) { var u = new SpeechSynthesisUtterance(" "); u.volume = 0; speechSynthesis.speak(u); unlocked = true; }
-  }
-  function typeFallback(why) {
-    setMic("", why + " – tryk 🎤 på tastaturet og tal");
-    $("#jarvis").classList.add("typing"); $("#jmode").textContent = "🎤 Tal i stedet";
-    setTimeout(function () { $("#jin").focus(); }, 50);
-  }
-  function run(t) {
-    busy = true; say(t, "me"); status();
-    ask(t).then(done, done);
-  }
-  function done() {
-    busy = false;
-    if (queued) { var q = queued; queued = null; return run(q); }
-    if (live) toTV({ state: "listening-keep" });
-    status();
-  }
-  // Holder øje med, hvornår Jarvis er færdig med at tale, så status passer
-  setInterval(function () { if (live && !busy) status(); }, 800);
-  $("#jmic").onclick = tapMic;
-  window.jarvisEndLive = function () { if (live) endLive(); };
+  btn.onclick = tap;
   document.addEventListener("visibilitychange", function () { if (document.hidden && live) endLive(); });
-  $("#jclose").onclick = function () { toTV({ state: "close" }); toast("Jarvis er lukket på TV'et"); };
-  // Lukkes appen eller skifter du til en anden app, så luk også Jarvis på TV'et
-  document.addEventListener("visibilitychange", function () {
-    if (document.hidden && document.querySelector("#jarvis").classList.contains("on")) toTV({ state: "close" });
-  });
-  // Når Jarvis-fanen åbnes: skift TV'et til Hjem og vis Jarvis klar
-  window.jarvisTab = function (on) {
-    if (on) {
-      if (RC.configured() && RC.ready()) { RC.openApp("hjem"); setTimeout(function () { toTV({ state: "ready" }); }, 2500); }
-      else toTV({ state: "ready" });
-      setTimeout(maybeBrief, 3500);
-    } else toTV({ state: "close" });
-  };
-  // Briefing: når Jarvis åbnes (højst hver 3. time), fortæller han af sig selv det vigtigste
-  function maybeBrief() {
-    if (lsGet("jarvisBrief") === "0" || busy || !(lsGet("jarvisUrl") || "").trim()) return;
-    var last = +(lsGet("jarvisBriefAt") || 0);
-    if (Date.now() - last < 3 * 3600 * 1000) return;
-    lsSet("jarvisBriefAt", String(Date.now()));
-    var h = new Date().getHours();
-    var prompt = "[BRIEFING – brugeren har lige åbnet dig] Giv en kort, levende briefing som Jarvis på højst 3-4 sætninger (den læses højt): " +
-      "en hilsen der passer til tidspunktet (" + (h < 10 ? "morgen" : h < 17 ? "dag" : "aften") + "); vejret i Aarhus nu og resten af dagen; " +
-      "og om det er MC-vejr i dag eller i morgen og hvorfor. " +
-      "Brug get_weather. Afslut med et kort spørgsmål om, hvad brugeren har lyst til.";
-    busy = true; setMic("think", "Jarvis gør en briefing klar…");
-    ask(prompt).then(done, done);
-  }
-  $("#jmode").onclick = function () {
-    var on = $("#jarvis").classList.toggle("typing");
-    this.textContent = on ? "🎤 Tal i stedet" : "⌨️ Skriv i stedet";
-  };
-
-  function send() {
-    var v = $("#jin").value.trim(); if (!v || busy) return;
-    unlockSpeech(); $("#jin").value = ""; run(v);
-  }
-  $("#jsend").onclick = send;
-  $("#jin").addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); send(); } });
+  window.jarvisEndLive = function () { if (live) endLive(); };
 })();
 </script>
 </body>

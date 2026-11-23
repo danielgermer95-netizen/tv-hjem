@@ -250,7 +250,7 @@
   loadWeather(); setInterval(loadWeather, 15 * 60 * 1000);
 
   /* ---------- Automatisk opdatering: genindlæs når der er en ny version på GitHub ---------- */
-  var APP_VERSION = "55";
+  var APP_VERSION = "56";
   function checkVersion() {
     if (DEMO || location.protocol === "file:") return;
     var x = new XMLHttpRequest();
@@ -538,6 +538,169 @@
     return { show: show, key: key, open: function () { return !el.classList.contains("hidden"); }, close: close };
   })();
 
+  /* ---------- Jarvis bor på TV'et: tænker, taler og handler herfra ---------- */
+  var JA = (function () {
+    var SERVER = "https://tv-hjem-jarvis.daniel-germer95.workers.dev";
+    var hist = [], busy = false, queue = null, lastAct = "", pendingLaunch = null, pendingShow = null;
+    var opts = store("jarvisOpts") || { model: "claude-opus-5-5", lang: "da", fast: false, voice: true };
+    // Felt øverst i højre kolonne
+    var box = document.createElement("div"); box.id = "ja";
+    box.innerHTML = '<div class="ja-row"><div id="ja-orb"></div><div><div id="ja-label">Jarvis</div><div id="ja-sub">Tal til mig via mikrofonen på telefonen</div></div></div><div id="ja-text"></div>';
+    var notes = $("notes"); notes.insertBefore(box, notes.firstChild);
+    function ui(state, text) {
+      box.className = "st-" + state;
+      $("ja-label").textContent = { thinking: "Jarvis tænker…", speaking: "Jarvis", listening: "Jarvis lytter…" }[state] || "Jarvis";
+      if (text != null) $("ja-text").textContent = text;
+    }
+    function toPhone(o) { relaySend({ title: "jarvis-out", message: JSON.stringify(o) }); }
+    function api(body) {
+      return new Promise(function (res, rej) {
+        var x = new XMLHttpRequest(); x.open("POST", SERVER); x.timeout = 90000;
+        x.setRequestHeader("Content-Type", "application/json"); x.setRequestHeader("X-Jarvis-Key", C.kanal);
+        x.onload = function () { var d; try { d = JSON.parse(x.responseText); } catch (e) { return rej(new Error("svar " + x.status)); } if (x.status !== 200) return rej(new Error(d.error || x.status)); res(d); };
+        x.onerror = x.ontimeout = function () { rej(new Error("ingen forbindelse")); };
+        x.send(JSON.stringify(body));
+      });
+    }
+    function obj(p, r) { return { type: "object", properties: p, required: r, additionalProperties: false }; }
+    var KEYS = ["KEY_VOLUP", "KEY_VOLDOWN", "KEY_MUTE", "KEY_CHUP", "KEY_CHDOWN", "KEY_UP", "KEY_DOWN", "KEY_LEFT", "KEY_RIGHT", "KEY_ENTER", "KEY_RETURN", "KEY_PLAY_BACK"];
+    var TOOLS = [
+      { name: "open_app", strict: true, description: "Åbner en app på TV'et, når du er færdig med at tale. 'playstation' skifter til PS5.",
+        input_schema: obj({ app: { type: "string", enum: C.apps.map(function (a) { return a.key; }) } }, ["app"]) },
+      { name: "press_keys", strict: true, description: "Sender tastetryk som fra fjernbetjeningen (fx 5 × KEY_VOLUP).",
+        input_schema: obj({ keys: { type: "array", items: { type: "string", enum: KEYS } } }, ["keys"]) },
+      { name: "send_tv_message", strict: true, description: "Viser en kort besked i beskedfeltet på Hjem-skærmen.",
+        input_schema: obj({ text: { type: "string" } }, ["text"]) },
+      { name: "show_suggestions", strict: true, description: "Viser 3-6 film/serieforslag med plakater stort på TV'et. Brug det altid, når brugeren vil have noget at se.",
+        input_schema: obj({ heading: { type: "string" }, items: { type: "array", items: obj({ title: { type: "string" }, year: { type: "integer" }, service: { type: "string" }, why: { type: "string" } }, ["title", "year", "service", "why"]) } }, ["heading", "items"]) },
+      { name: "get_weather", strict: true, description: "Vejret i Aarhus nu, de næste 24 timer og dagene frem (inkl. de seneste dage til salt-vurdering).",
+        input_schema: obj({}, []) }
+    ];
+    function context() {
+      var en = opts.lang === "en";
+      return "PERSONLIGHED: Du er Jarvis – en kultiveret, britisk AI-butler i stil med Tony Starks assistent. Formel, rolig og elegant med tør, underspillet humor. Du kalder brugeren 'sir'. " +
+        "Loyal og effektiv: meld kort, hvad du gør, gerne med én lille spydig bemærkning. Citer aldrig replikker fra filmene ordret. Hold svar til 1–3 korte sætninger – de læses højt. " +
+        (en ? "SPROG: Svar ALTID på britisk engelsk, også når brugeren taler dansk. " : "SPROG: Svar på dansk med britisk butler-tone ('sir'). ") +
+        "Du kører på stue-TV'et (Samsung) i Aarhus og kan ikke se, hvad apps viser. Når du åbner en app, så sig kort hvad du gør – appen åbnes, når du har talt færdig. " +
+        "Brugeren kører en fabriksny Honda CB650R. MC-regler: under 5° = nej, 5–10° = kolde dæk, regn ≥60% eller vindstød ≥15 m/s = nej, frost de seneste dage = saltede veje, kun i dagslys. " +
+        "Familien har: " + C.apps.map(function (a) { return a.navn; }).join(", ") + ". Du har ikke adgang til internettet eller nyheder. " +
+        "Tid nu: " + new Date().toLocaleString("da-DK") + ". " + (lastAct ? "Seneste handling: " + lastAct + "." : "");
+    }
+    function weatherText() {
+      var w = store("vejr"); if (!w || !w.hourly) return "Fejl: intet vejr endnu";
+      var h0 = w.hourly.time.indexOf(w.current.time.slice(0, 13) + ":00"), hrs = [];
+      for (var k = 0; k < 24 && h0 >= 0 && h0 + k < w.hourly.time.length; k += 3) hrs.push(w.hourly.time[h0 + k].slice(11, 16) + " " + Math.round(w.hourly.temperature_2m[h0 + k]) + "° regn" + w.hourly.precipitation_probability[h0 + k] + "%" + (w.hourly.wind_gusts_10m ? " stød" + Math.round(w.hourly.wind_gusts_10m[h0 + k]) : ""));
+      var dd = w.daily, days = dd.time.map(function (d, i) { return d + ": " + Math.round(dd.temperature_2m_min[i]) + "–" + Math.round(dd.temperature_2m_max[i]) + "°, regn " + dd.precipitation_probability_max[i] + "%/" + dd.precipitation_sum[i] + "mm, stød " + Math.round((dd.wind_gusts_10m_max || dd.wind_speed_10m_max)[i]) + " m/s, sol " + dd.sunrise[i].slice(11) + "–" + dd.sunset[i].slice(11); });
+      return "Aarhus nu (" + w.current.time + "): " + Math.round(w.current.temperature_2m) + "° (føles " + Math.round(w.current.apparent_temperature) + "°), stød " + Math.round(w.current.wind_gusts_10m) + " m/s. Næste 24 t: " + hrs.join("; ") + ". Dage: " + days.join(" | ");
+    }
+    function tmdb(path) { return api({ tmdb: path }); }
+    function enrich(it) {
+      return tmdb("/search/multi?language=da-DK&region=DK&query=" + encodeURIComponent(it.title)).then(function (res) {
+        var best = null;
+        (res.results || []).forEach(function (r) {
+          if (r.media_type !== "movie" && r.media_type !== "tv") return;
+          var y = +((r.release_date || r.first_air_date || "").slice(0, 4));
+          if (!best || (it.year && Math.abs(y - it.year) < Math.abs(+((best.release_date || best.first_air_date || "").slice(0, 4)) - it.year))) best = r;
+        });
+        if (!best) return;
+        if (best.poster_path) it.poster = "https://image.tmdb.org/t/p/w342" + best.poster_path;
+        return tmdb("/" + best.media_type + "/" + best.id + "/watch/providers").then(function (wp) {
+          var dk = (wp.results || {}).DK || {}, prov = (dk.flatrate || []).concat(dk.free || [], dk.ads || []);
+          it.verified = true;
+          if (prov.length) { it.service = prov[0].provider_name; if (prov[0].logo_path) it.logo = "https://image.tmdb.org/t/p/w92" + prov[0].logo_path; }
+          else it.service = (dk.rent || dk.buy || []).length ? "Leje/køb" : "";
+        });
+      }).catch(function () {});
+    }
+    function runTool(t) {
+      var inp = t.input || {};
+      if (t.name === "open_app") { pendingLaunch = inp.app; lastAct = "åbnede " + inp.app; return Promise.resolve("Appen åbnes, når du har talt færdig"); }
+      if (t.name === "press_keys") { (inp.keys || []).slice(0, 30).forEach(function (k, i) { setTimeout(function () { sendKey(k); }, i * 200); }); return Promise.resolve("Sendt " + (inp.keys || []).length + " tastetryk"); }
+      if (t.name === "send_tv_message") { var n = { text: String(inp.text || "").slice(0, 300), t: Date.now() }; store("note", n); showNote(n); return Promise.resolve("Vist på TV'et"); }
+      if (t.name === "get_weather") return Promise.resolve(weatherText());
+      if (t.name === "show_suggestions") {
+        pendingShow = { heading: inp.heading || "", items: (inp.items || []).slice(0, 6) };
+        return Promise.all(pendingShow.items.map(enrich)).then(function () {
+          lastAct = "viste forslag: " + pendingShow.items.map(function (i) { return i.title; }).join(", ");
+          return "Vises på TV'et. Slået op i TMDB (brug disse tjenester): " + pendingShow.items.map(function (i) { return i.title + ": " + (i.verified ? (i.service || "ikke på streaming i DK") : "ukendt"); }).join("; ");
+        });
+      }
+      return Promise.resolve("Fejl: ukendt værktøj");
+    }
+    // Stemme fra TV'et (ElevenLabs via serveren). Løses, når Jarvis er færdig med at tale.
+    var audio = null;
+    function speak(text) {
+      return new Promise(function (done) {
+        if (!opts.voice || !text) return done();
+        var fin = false, finish = function () { if (fin) return; fin = true; toPhone({ state: "spoken" }); relaySend({ title: "tvaudio", message: "end" }); done(); };
+        setTimeout(finish, 60000);
+        var x = new XMLHttpRequest(); x.open("POST", SERVER); x.responseType = "blob";
+        x.setRequestHeader("Content-Type", "application/json"); x.setRequestHeader("X-Jarvis-Key", C.kanal);
+        x.onload = function () {
+          if (x.status !== 200) return finish();
+          try { if (audio) audio.pause(); } catch (e) {}
+          var a = audio = new Audio(URL.createObjectURL(x.response));
+          a.onplaying = function () { relaySend({ title: "tvaudio", message: "start:" + Math.ceil(a.duration || 8) }); };
+          a.onended = a.onerror = finish;
+          var pr = a.play(); if (pr && pr.catch) pr.catch(finish);
+        };
+        x.onerror = finish;
+        x.send(JSON.stringify({ tts: text, fast: !!opts.fast }));
+      });
+    }
+    function stop() { try { if (audio) audio.pause(); } catch (e) {} relaySend({ title: "tvaudio", message: "end" }); }
+    function ask(text, label) {
+      if (busy) { queue = text; return; }
+      busy = true; pendingLaunch = null; pendingShow = null;
+      hist.push({ role: "user", content: text });
+      while (hist.length > 30) { hist.shift(); while (hist.length && !(hist[0].role === "user" && typeof hist[0].content === "string")) hist.shift(); }
+      ui("thinking", label || "“" + text + "”"); toPhone({ state: "thinking", text: label || text });
+      var final = "", round = 0;
+      function step() {
+        return api({ messages: hist, tools: TOOLS, context: context(), model: opts.model }).then(function (d) {
+          hist.push({ role: "assistant", content: d.content });
+          var txt = (d.content || []).filter(function (b) { return b.type === "text"; }).map(function (b) { return b.text; }).join("\n").trim();
+          if (txt) final = txt;
+          if (d.stop_reason === "pause_turn" && ++round < 8) return step();
+          if (d.stop_reason !== "tool_use" || ++round >= 8) return;
+          var uses = (d.content || []).filter(function (b) { return b.type === "tool_use"; });
+          return Promise.all(uses.map(function (u) { return runTool(u).then(function (out) { return { type: "tool_result", tool_use_id: u.id, content: out, is_error: /^Fejl/.test(out) }; }); }))
+            .then(function (results) { hist.push({ role: "user", content: results }); return step(); });
+        });
+      }
+      step().then(function () {
+        final = final || "Done, sir.";
+        ui("speaking", final); toPhone({ state: "answer", text: final });
+        if (pendingShow) JV.show({ state: "answer", text: final, heading: pendingShow.heading, items: pendingShow.items });
+        return speak(final);
+      }, function (e) {
+        while (hist.length && !(hist[hist.length - 1].role === "user" && typeof hist[hist.length - 1].content === "string")) hist.pop();
+        hist.pop();
+        ui("idle", "Jeg kunne ikke nå min hjerne: " + e.message); toPhone({ state: "error", text: e.message });
+      }).then(function () {
+        busy = false;
+        // Først når Jarvis har talt færdig, åbnes appen
+        if (pendingLaunch) { var k = pendingLaunch; pendingLaunch = null; if (JV.open()) JV.close(); setTimeout(function () { launch(k); }, 300); }
+        if (queue) { var q = queue; queue = null; ask(q); } else if (box.className === "st-speaking") ui("idle");
+      });
+    }
+    // Briefing når Hjem åbnes (højst hver 3. time)
+    function brief(force) {
+      if (busy || DEMO) return;
+      var last = +(store("jarvisBriefAt") || 0);
+      if (!force && (opts.brief === false || Date.now() - last < 3 * 3600 * 1000)) return;
+      store("jarvisBriefAt", Date.now());
+      var h = new Date().getHours();
+      ask("[BRIEFING – Hjem er lige åbnet] Giv en kort briefing på højst 3-4 sætninger: en hilsen der passer til " + (h < 10 ? "morgenen" : h < 17 ? "dagen" : "aftenen") +
+        ", vejret i Aarhus nu og resten af dagen, og om det er MC-vejr i dag eller i morgen og hvorfor. Brug get_weather. Afslut med et kort spørgsmål om, hvad brugeren har lyst til.", "Briefing");
+    }
+    function setOpts(o) { if (!o) return; for (var k in o) opts[k] = o[k]; store("jarvisOpts", opts); }
+    ui("idle");
+    return { ask: ask, brief: brief, stop: stop, setOpts: setOpts, ui: ui, busy: function () { return busy; } };
+  })();
+  setTimeout(function () { JA.brief(); }, 6000);
+  document.addEventListener("visibilitychange", function () { if (!document.hidden) setTimeout(function () { JA.brief(); }, 3000); });
+
   /* ---------- Beskeder fra mobilen (ntfy.sh) ---------- */
   function showNote(n) {
     if (!n) return clearNote();
@@ -561,6 +724,17 @@
     if (m.event !== "message") return;
     if (m.title === "apps") return; // Hjems egen app-liste til mobilen – ikke en besked
     if (m.title === "tvaudio") return; // TV'ets egen besked til mobilen
+    if (m.title === "jarvis-out") return; // Jarvis' egne beskeder til mobilen
+    if (m.title === "jarvis-ask") {
+      if (m.time && Date.now() / 1000 - m.time > 60) return;
+      var q; try { q = JSON.parse(m.message); } catch (e) { q = { text: m.message }; }
+      JA.setOpts(q.opts);
+      if (q.stop) { JA.stop(); return; }
+      if (q.listening) { if (!JA.busy()) JA.ui("listening"); return; }
+      if (q.brief) { JA.brief(true); return; }
+      if (q.text) JA.ask(String(q.text).slice(0, 500));
+      return;
+    }
     if (m.title === "jarvis") {
       if (!m.time || Date.now() / 1000 - m.time > 60) return;
       try { JV.show(JSON.parse(m.message)); } catch (e) {}
