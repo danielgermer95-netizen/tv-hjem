@@ -241,17 +241,6 @@ body {
 .jv-s { display: flex; align-items: center; gap: 8px; }
 .jv-ic { width: 30px; height: 30px; border-radius: 7px; object-fit: cover; }
 
-/* ---------- Jarvis i højre kolonne ---------- */
-#ja { flex: none; padding-bottom: 18px; margin-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,.14); }
-.ja-row { display: flex; align-items: center; gap: 16px; }
-#ja-orb { width: 58px; height: 58px; border-radius: 50%; flex: none;
-  background: radial-gradient(circle at 40% 35%, #b9c8ff, #5b8cff 55%, #2a3a9a); box-shadow: 0 0 24px rgba(91,140,255,.5); }
-#ja.st-thinking #ja-orb { animation: jaspin 1.2s linear infinite; background: conic-gradient(#5b8cff, #b9a8ff, #5b8cff); }
-#ja.st-speaking #ja-orb, #ja.st-listening #ja-orb { animation: japulse 1s ease-in-out infinite; }
-@keyframes jaspin { to { transform: rotate(360deg); } }
-@keyframes japulse { 50% { transform: scale(1.12); box-shadow: 0 0 40px rgba(124,160,255,.8); } }
-#ja-label { font-size: 26px; font-weight: 700; }
-#ja-sub { font-size: 16px; opacity: .55; margin-top: 2px; }
-#ja-text { margin-top: 12px; font-size: 22px; line-height: 1.35; max-height: 150px; overflow: hidden; }
-#ja-text:empty { display: none; }
-#ja.st-idle #ja-text { opacity: .7; }
+/* ---------- Jarvis i højre kolonne: kun den levende kugle ---------- */
+#ja { flex: none; height: 230px; margin: -14px -10px 10px; border-bottom: 1px solid rgba(255,255,255,.12); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+#ja-orb { width: 520px; height: 300px; max-width: 100%; object-fit: contain; }

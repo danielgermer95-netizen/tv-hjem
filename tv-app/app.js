@@ -250,7 +250,7 @@
   loadWeather(); setInterval(loadWeather, 15 * 60 * 1000);
 
   /* ---------- Automatisk opdatering: genindlæs når der er en ny version på GitHub ---------- */
-  var APP_VERSION = "58";
+  var APP_VERSION = "59";
   function checkVersion() {
     if (DEMO || location.protocol === "file:") return;
     var x = new XMLHttpRequest();
@@ -544,14 +544,38 @@
     var hist = [], busy = false, queue = null, lastAct = "", pendingLaunch = null, pendingShow = null;
     var opts = store("jarvisOpts") || { model: "claude-opus-5-5", lang: "da", fast: false, voice: true };
     // Felt øverst i højre kolonne
-    var box = document.createElement("div"); box.id = "ja";
-    box.innerHTML = '<div class="ja-row"><div id="ja-orb"></div><div><div id="ja-label">Jarvis</div><div id="ja-sub">Tal til mig via mikrofonen på telefonen</div></div></div><div id="ja-text"></div>';
+    var box = document.createElement("div"); box.id = "ja"; box.className = "st-idle";
+    box.innerHTML = '<canvas id="ja-orb" width="520" height="300"></canvas>';
     var notes = $("notes"); notes.insertBefore(box, notes.firstChild);
-    function ui(state, text) {
-      box.className = "st-" + state;
-      $("ja-label").textContent = { thinking: "Jarvis tænker…", speaking: "Jarvis", listening: "Jarvis lytter…" }[state] || "Jarvis";
-      if (text != null) $("ja-text").textContent = text;
+    // Levende kugle af prikker: lille og rolig når han venter, drejer når han tænker,
+    // og åbner sig op og pulserer, når han taler.
+    var cv = box.firstChild, g = cv.getContext("2d"), P = [], st = "idle", R = 46, spread = 0, spin = 0, last = 0;
+    for (var i = 0; i < 340; i++) {
+      var u = Math.random() * 2 - 1, th = Math.random() * Math.PI * 2, r = Math.sqrt(1 - u * u);
+      P.push([r * Math.cos(th), u, r * Math.sin(th), Math.random(), 0.6 + Math.random() * 0.8]);
     }
+    var TGT = { idle: [46, 0, 0.25], listening: [62, 0.15, 0.5], thinking: [56, 0.05, 1.6], speaking: [76, 1, 0.6] };
+    function draw(ts) {
+      requestAnimationFrame(draw);
+      if (document.hidden) return;
+      var dt = Math.min(0.05, (ts - (last || ts)) / 1000); last = ts;
+      var tg = TGT[st] || TGT.idle, k = Math.min(1, dt * 3);
+      R += (tg[0] - R) * k; spread += (tg[1] - spread) * k; spin += dt * tg[2];
+      var tt = ts / 1000, ca = Math.cos(spin), sa = Math.sin(spin);
+      var talk = st === "speaking" ? 0.10 * Math.sin(tt * 9) + 0.06 * Math.sin(tt * 14.3) : st === "listening" ? 0.05 * Math.sin(tt * 3) : 0.03 * Math.sin(tt * 1.5);
+      g.clearRect(0, 0, 520, 300);
+      for (var i = 0; i < P.length; i++) {
+        var p = P[i], x = p[0] * ca - p[2] * sa, z = p[0] * sa + p[2] * ca, y = p[1];
+        // Når han taler, flyver prikkerne ud i hver deres afstand og bølger
+        var out = 1 + spread * (p[4] - 0.6 + 0.35 * Math.sin(tt * 2.2 + p[3] * 9));
+        var s = R * out * (1 + talk), d = (z + 1.6) / 2.6;
+        g.fillStyle = "rgba(" + (90 + 90 * d | 0) + "," + (150 + 75 * d | 0) + ",255," + ((0.2 + 0.8 * d) * (st === "idle" ? 0.75 : 1)).toFixed(2) + ")";
+        var sz = 2.2 * d + 0.7;
+        g.fillRect(260 + x * s, 150 + y * s, sz, sz);
+      }
+    }
+    requestAnimationFrame(draw);
+    function ui(state) { st = state || "idle"; box.className = "st-" + st; }
     function toPhone(o) { relaySend({ title: "jarvis-out", message: JSON.stringify(o) }); }
     function api(body) {
       return new Promise(function (res, rej) {
@@ -654,7 +678,7 @@
       busy = true; pendingLaunch = null; pendingShow = null;
       hist.push({ role: "user", content: opts.lang === "en" ? text + "\n\n(Reply in British English.)" : text });
       while (hist.length > 30) { hist.shift(); while (hist.length && !(hist[0].role === "user" && typeof hist[0].content === "string")) hist.shift(); }
-      ui("thinking", label || "“" + text + "”"); toPhone({ state: "thinking", text: label || text });
+      ui("thinking"); toPhone({ state: "thinking", text: label || text });
       var final = "", round = 0;
       function step() {
         return api({ messages: hist, tools: TOOLS, context: context(), model: opts.model }).then(function (d) {
@@ -670,13 +694,13 @@
       }
       step().then(function () {
         final = final || "Done, sir.";
-        ui("speaking", final); toPhone({ state: "answer", text: final });
+        ui("speaking"); toPhone({ state: "answer", text: final });
         if (pendingShow) JV.show({ state: "answer", text: final, heading: pendingShow.heading, items: pendingShow.items });
         return speak(final);
       }, function (e) {
         while (hist.length && !(hist[hist.length - 1].role === "user" && typeof hist[hist.length - 1].content === "string")) hist.pop();
         hist.pop();
-        ui("idle", "Jeg kunne ikke nå min hjerne: " + e.message); toPhone({ state: "error", text: e.message });
+        ui("idle"); toast("Jarvis kunne ikke nå sin hjerne: " + e.message); toPhone({ state: "error", text: e.message });
       }).then(function () {
         busy = false;
         // Først når Jarvis har talt færdig, åbnes appen
@@ -700,9 +724,11 @@
       if ((o.lang && o.lang !== opts.lang) || (o.model && o.model !== opts.model)) hist = []; // nyt sprog/hjerne: start forfra
       for (var k in o) opts[k] = o[k]; store("jarvisOpts", opts);
     }
-    ui("idle");
+    // Nulstil briefingen én gang med denne version, så den kan testes igen
+    if (store("jaReset") !== "59") { store("jaReset", "59"); store("jarvisBriefAt", 0); }
     return { ask: ask, brief: brief, stop: stop, setOpts: setOpts, ui: ui, busy: function () { return busy; } };
   })();
+  window.JA = JA; // til fejlfinding
   setTimeout(function () { JA.brief(); }, 6000);
   document.addEventListener("visibilitychange", function () { if (!document.hidden) setTimeout(function () { JA.brief(); }, 3000); });
 

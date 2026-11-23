@@ -206,7 +206,7 @@
 </style>
 </head>
 <body>
-  <header><h1>TV Hjem <small style="font-size:11px;opacity:.45;font-weight:500">v58</small></h1><span class="hright"><span class="pill" id="status">● Klar</span><button class="jfab" id="jfab" aria-label="Tal til Jarvis"><span></span></button></span></header>
+  <header><h1>TV Hjem <small style="font-size:11px;opacity:.45;font-weight:500">v59</small></h1><span class="hright"><span class="pill" id="status">● Klar</span><button class="jfab" id="jfab" aria-label="Tal til Jarvis"><span></span></button></span></header>
 
   <div class="tabs">
     <button data-tab="fjern" class="on">Fjernb.</button>
@@ -319,6 +319,7 @@
       <label class="chk"><input type="checkbox" id="jspeak"> Jarvis taler højt fra TV'et</label>
       <label class="chk"><input type="checkbox" id="jfast"> Hurtig stemme (ElevenLabs Flash)</label>
       <label class="chk"><input type="checkbox" id="jbrief"> Briefing når Hjem åbnes på TV'et (højst hver 3. time)</label>
+      <button class="ghost" id="jbriefNow" style="margin-top:6px">▶︎ Kør briefing nu</button>
     </div>
   </section>
 
@@ -699,7 +700,7 @@ var RC = (function () {
 
 // ---------- Automatisk opdatering: tjek om der er kommet en ny version ----------
 (function () {
-  var MINE = "58", last = 0;
+  var MINE = "59", last = 0;
   function check() {
     if (Date.now() - last < 60000) return; last = Date.now();
     fetch("version.txt?t=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.ok ? r.text() : ""; }).then(function (v) {
@@ -736,6 +737,7 @@ var RC = (function () {
   function sendOpts() { toTV({}); }
   // Send indstillingerne til TV'et, så snart der er forbindelse (fx sprog)
   window.onRelayOpen = sendOpts;
+  $("#jbriefNow").onclick = function () { toTV({ brief: true }).then(function (ok) { toast(ok ? "Jarvis gør briefingen klar på TV'et" : "Ingen forbindelse til Jarvis"); }); };
 
   var btn = $("#jfab"), bub = $("#jbub");
   function show(mode, msg) {
