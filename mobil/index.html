@@ -206,7 +206,7 @@
 </style>
 </head>
 <body>
-  <header><h1>TV Hjem <small style="font-size:11px;opacity:.45;font-weight:500">v66</small></h1><span class="hright"><span class="pill" id="status">● Klar</span><button class="jfab" id="jfab" aria-label="Tal til Jarvis"><span></span></button></span></header>
+  <header><h1>TV Hjem <small style="font-size:11px;opacity:.45;font-weight:500">v67</small></h1><span class="hright"><span class="pill" id="status">● Klar</span><button class="jfab" id="jfab" aria-label="Tal til Jarvis"><span></span></button></span></header>
 
   <div class="tabs">
     <button data-tab="fjern" class="on">Fjernb.</button>
@@ -321,6 +321,11 @@
       <label class="chk"><input type="checkbox" id="jbrief"> Briefing når Hjem åbnes på TV'et (højst hver 3. time)</label>
       <button class="ghost" id="jbriefNow" style="margin-top:6px">▶︎ Kør briefing nu</button>
     </div>
+    <h2>👪 Familien</h2>
+    <div class="setup on">
+      <div>Send dette link til fx din kæreste. Åbn det i Safari og vælg <i>Del → Føj til hjemmeskærm</i>. Så kan hun også sende beskeder og tale med Jarvis. Linket indeholder jeres hemmelige nøgle – del det kun med familien.</div>
+      <button class="ghost" id="shareApp">📤 Del appen med familien</button>
+    </div>
   </section>
 
   <section class="panel" id="apps">
@@ -343,6 +348,7 @@ var KANAL = (function () {
   return k;
 })();
 var NTFY = "https://ntfy.sh/" + encodeURIComponent(KANAL);
+var JARVIS_DEFAULT = "https://tv-hjem-jarvis.daniel-germer95.workers.dev"; // familiens Jarvis-server (bruges, hvis intet er skrevet under ⚙️)
 
 var $ = function (s) { return document.querySelector(s); };
 // iPhone-hjemmeskærm-app: nogle iOS-versioner melder en for lav skærmhøjde, så siden
@@ -371,6 +377,7 @@ function status(ok, m) { var s = $("#status"); s.textContent = "● " + m; s.sty
 var relayWS = null, relayHandlers = [], relayRetry = 0;
 function relayBase() {
   var u = ""; try { u = (localStorage.getItem("jarvisUrl") || "").trim(); } catch (e) {}
+  if (!u) u = JARVIS_DEFAULT;
   if (!u) return null; try { return new URL("/relay", u).href; } catch (e) { return null; }
 }
 function relayConnect() {
@@ -747,7 +754,7 @@ var RC = (function () {
 
 // ---------- Automatisk opdatering: tjek om der er kommet en ny version ----------
 (function () {
-  var MINE = "66", last = 0;
+  var MINE = "67", last = 0;
   function check() {
     if (Date.now() - last < 60000) return; last = Date.now();
     fetch("version.txt?t=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.ok ? r.text() : ""; }).then(function (v) {
@@ -765,7 +772,7 @@ var RC = (function () {
   function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
   function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
   // Indstillinger (⚙️)
-  $("#jurl").value = lsGet("jarvisUrl") || "";
+  $("#jurl").value = lsGet("jarvisUrl") || JARVIS_DEFAULT;
   $("#jurl").onchange = function () { lsSet("jarvisUrl", this.value.trim()); relayConnect(); };
   function bind(id, k, def, isChk) {
     var el = $("#" + id), v = lsGet(k);
@@ -791,6 +798,12 @@ var RC = (function () {
   function sendOpts() { toTV({}); }
   // Send indstillingerne til TV'et, så snart der er forbindelse (fx sprog)
   window.onRelayOpen = sendOpts;
+  $("#shareApp").onclick = function () {
+    var url = location.origin + location.pathname + "#k=" + encodeURIComponent(KANAL);
+    if (navigator.share) navigator.share({ title: "TV Hjem", url: url }).catch(function () {});
+    else if (navigator.clipboard) navigator.clipboard.writeText(url).then(function () { toast("Link kopieret"); });
+    else prompt("Kopiér linket:", url);
+  };
   $("#jbriefNow").onclick = function () { toTV({ brief: true }).then(function (ok) { toast(ok ? "Jarvis gør briefingen klar på TV'et" : "Ingen forbindelse til Jarvis"); }); };
 
   var btn = $("#jfab"), bub = $("#jbub");
@@ -837,7 +850,6 @@ var RC = (function () {
     show("", msg || ""); clearTimeout(hideT); if (msg) hideT = setTimeout(function () { show("", ""); }, 3000);
   }
   function tap() {
-    if (!(lsGet("jarvisUrl") || "").trim()) { toast("Skriv Jarvis-serverens adresse under ⚙️"); return; }
     if (live && jSaying()) { sayUntil = 0; toTV({ stop: true }); return status(); }
     if (live) return endLive("Samtalen er slut");
     if (!SR) { var t = prompt("Skriv til Jarvis"); if (t) toTV({ text: t }); return; }

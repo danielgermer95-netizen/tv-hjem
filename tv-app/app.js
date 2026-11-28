@@ -251,7 +251,7 @@
   loadWeather(); setInterval(loadWeather, 15 * 60 * 1000);
 
   /* ---------- Automatisk opdatering: genindlæs når der er en ny version på GitHub ---------- */
-  var APP_VERSION = "64";
+  var APP_VERSION = "66";
   function checkVersion() {
     if (DEMO || location.protocol === "file:") return;
     var x = new XMLHttpRequest();
@@ -373,6 +373,7 @@
 
   /* ---------- Fjernbetjening ---------- */
   document.addEventListener("keydown", function (e) {
+    if (closeBig()) { e.preventDefault(); return; }
     if (JV.open() && JV.key(e.keyCode)) { e.preventDefault(); return; }
     if (ORB && ORB.key(e.keyCode)) { e.preventDefault(); return; }
     switch (e.keyCode) {
@@ -582,7 +583,7 @@
     function toPhone(o) { relaySend({ title: "jarvis-out", message: JSON.stringify(o) }); }
     function api(body) {
       return new Promise(function (res, rej) {
-        var x = new XMLHttpRequest(); x.open("POST", SERVER); x.timeout = 90000;
+        var x = new XMLHttpRequest(); x.open("POST", SERVER); x.timeout = 150000;
         x.setRequestHeader("Content-Type", "application/json"); x.setRequestHeader("X-Jarvis-Key", C.kanal);
         x.onload = function () { var d; try { d = JSON.parse(x.responseText); } catch (e) { return rej(new Error("svar " + x.status)); } if (x.status !== 200) return rej(new Error(d.error || x.status)); res(d); };
         x.onerror = x.ontimeout = function () { rej(new Error("ingen forbindelse")); };
@@ -591,7 +592,7 @@
     }
     function obj(p, r) { return { type: "object", properties: p, required: r, additionalProperties: false }; }
     var KEYS = ["KEY_VOLUP", "KEY_VOLDOWN", "KEY_MUTE", "KEY_CHUP", "KEY_CHDOWN", "KEY_UP", "KEY_DOWN", "KEY_LEFT", "KEY_RIGHT", "KEY_ENTER", "KEY_RETURN", "KEY_PLAY_BACK"];
-    var TOOLS = [
+    function tools() { return [
       { name: "open_app", strict: true, description: "Åbner en app på TV'et, når du er færdig med at tale. 'playstation' skifter til PS5.",
         input_schema: obj({ app: { type: "string", enum: C.apps.map(function (a) { return a.key; }) } }, ["app"]) },
       { name: "press_keys", strict: true, description: "Sender tastetryk som fra fjernbetjeningen (fx 5 × KEY_VOLUP).",
@@ -600,9 +601,12 @@
         input_schema: obj({ text: { type: "string" } }, ["text"]) },
       { name: "show_suggestions", strict: true, description: "Viser 3-6 film/serieforslag med plakater stort på TV'et. Brug det altid, når brugeren vil have noget at se.",
         input_schema: obj({ heading: { type: "string" }, items: { type: "array", items: obj({ title: { type: "string" }, year: { type: "integer" }, service: { type: "string" }, why: { type: "string" } }, ["title", "year", "service", "why"]) } }, ["heading", "items"]) },
+      // Websøgning (kører hos Anthropic) – til aktuelle ting som hvor en serie/sæson kan streames
+      { type: opts.model === "claude-haiku-5-5" ? "web_search_20250305" : "web_search_20260209", name: "web_search", max_uses: 4,
+        user_location: { type: "approximate", city: "Aarhus", country: "DK", timezone: "Europe/Copenhagen" } },
       { name: "get_weather", strict: true, description: "Vejret i Aarhus nu, de næste 24 timer og dagene frem (inkl. de seneste dage til salt-vurdering).",
         input_schema: obj({}, []) }
-    ];
+    ]; }
     function context() {
       var en = opts.lang === "en";
       return "PERSONLIGHED: Du er Jarvis – en kultiveret, britisk AI-butler i stil med Tony Starks assistent. Formel, rolig og elegant med tør, underspillet humor. Du kalder brugeren 'sir'. " +
@@ -610,7 +614,7 @@
         (en ? "LANGUAGE: ALWAYS reply in British English – even though the user speaks Danish and these instructions are in Danish. Never reply in Danish. " : "SPROG: Svar på dansk med britisk butler-tone ('sir'). ") +
         "Du kører på stue-TV'et (Samsung) i Aarhus og kan ikke se, hvad apps viser. Når du åbner en app, så sig kort hvad du gør – appen åbnes, når du har talt færdig. " +
         "Brugeren kører en fabriksny Honda CB650R. MC-regler: under 5° = nej, 5–10° = kolde dæk, regn ≥60% eller vindstød ≥15 m/s = nej, frost de seneste dage = saltede veje, kun i dagslys. " +
-        "Familien har: " + C.apps.map(function (a) { return a.navn; }).join(", ") + ". Du har ikke adgang til internettet eller nyheder. " +
+        "Familien har: " + C.apps.map(function (a) { return a.navn; }).join(", ") + ". Du kan søge på nettet med web_search. Brug det, når svaret afhænger af aktuelle fakta – fx hvilken dansk streamingtjeneste en film, serie eller bestemt sæson ligger på (søg fx på justwatch.com/dk), nye sæsoner, udgivelser, sportstider. Gæt aldrig på den slags – søg, og sig ærligt, hvis du ikke kan finde det. Når svaret handler om film/serier, så vis dem også visuelt med show_suggestions (brug den tjeneste, du fandt). " +
         "Tid nu: " + new Date().toLocaleString("da-DK") + ". " + (lastAct ? "Seneste handling: " + lastAct + "." : "") +
         (en ? " FINAL RULE, overrides everything above: you speak ONLY British English. Every reply must be in English." : "");
     }
@@ -681,13 +685,15 @@
       if (busy) { queue = text; return; }
       busy = true; pendingLaunch = null; pendingShow = null;
       hist.push({ role: "user", content: opts.lang === "en" ? text + "\n\n(Reply in British English.)" : text });
-      while (hist.length > 30) { hist.shift(); while (hist.length && !(hist[0].role === "user" && typeof hist[0].content === "string")) hist.shift(); }
+      while (hist.length > 16) { hist.shift(); while (hist.length && !(hist[0].role === "user" && typeof hist[0].content === "string")) hist.shift(); }
       ui("thinking"); toPhone({ state: "thinking", text: label || text });
       var final = "", round = 0;
       function step() {
-        return api({ messages: hist, tools: TOOLS, context: context(), model: opts.model }).then(function (d) {
+        return api({ messages: hist, tools: tools(), context: context(), model: opts.model }).then(function (d) {
           hist.push({ role: "assistant", content: d.content });
-          var txt = (d.content || []).filter(function (b) { return b.type === "text"; }).map(function (b) { return b.text; }).join("\n").trim();
+          var blocks = d.content || [], lastRes = -1;
+          blocks.forEach(function (b, k) { if (/tool_result$/.test(b.type)) lastRes = k; });
+          var txt = blocks.slice(lastRes + 1).filter(function (b) { return b.type === "text"; }).map(function (b) { return b.text; }).join("").trim();
           if (txt) final = txt;
           if (d.stop_reason === "pause_turn" && ++round < 8) return step();
           if (d.stop_reason !== "tool_use" || ++round >= 8) return;
@@ -742,11 +748,22 @@
     $("note-empty").style.display = "none";
     $("note-img").src = n.img || "";
     $("note-text").textContent = n.text || "";
+    var L = (n.text || "").length; $("note-text").style.fontSize = (n.img ? (L > 60 ? 20 : 26) : (L > 160 ? 22 : L > 80 ? 28 : 38)) + "px";
     var t = new Date(n.t);
     $("note-meta").textContent = "Fra mobilen · " + pad(t.getHours()) + ":" + pad(t.getMinutes());
     var el = $("note-body"); el.classList.remove("pop"); void el.offsetWidth; el.classList.add("pop");
     if (ORB && Date.now() - n.t < 60000) ORB.note();
+    if (Date.now() - n.t < 60000) bigNote(n);
   }
+  // Nye beskeder vises stort over hele skærmen i 20 sekunder (en vilkårlig tast lukker)
+  var big = null, bigT;
+  function bigNote(n) {
+    if (!big) { big = document.createElement("div"); big.id = "note-big"; $("stage").appendChild(big); }
+    big.innerHTML = (n.img ? '<img src="' + n.img + '" alt="">' : "") + (n.text ? '<div class="nb-text"></div>' : "") + '<div class="nb-meta">Fra mobilen · tryk en knap for at lukke</div>';
+    if (n.text) big.querySelector(".nb-text").textContent = n.text;
+    big.className = "on" + (n.img ? "" : " textonly"); clearTimeout(bigT); bigT = setTimeout(closeBig, 20000);
+  }
+  function closeBig() { if (big && big.className) { big.className = ""; big.innerHTML = ""; return true; } return false; }
   function clearNote() {
     store("note", null);
     $("note-img").src = ""; $("note-text").textContent = ""; $("note-meta").textContent = "";
@@ -827,7 +844,6 @@
     try { rws = new WebSocket(RELAY + "?k=" + encodeURIComponent(C.kanal)); } catch (e) { rws = null; return listenNtfy(); }
     rws.onopen = function () {
       rfails = 0;
-      if (es) { try { es.close(); } catch (e) {} es = null; }   // ntfy behøves ikke, når centralen virker
       clearInterval(pingT); pingT = setInterval(function () { try { rws.send("ping"); } catch (e) {} }, 30000);
     };
     rws.onmessage = function (ev) {
@@ -841,6 +857,8 @@
     };
     rws.onerror = function () {};
   }
+  // ntfy lytter altid med som reserve (fx telefoner, der ikke kender Jarvis-serveren)
+  listenNtfy();
   function relaySend(obj) {
     if (rws && rws.readyState === 1) { try { rws.send(JSON.stringify(obj)); return true; } catch (e) {} }
     return false;
